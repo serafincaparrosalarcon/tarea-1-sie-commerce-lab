@@ -1280,7 +1280,19 @@ export default function Home() {
                   onClick={() => {
                     setCategory(r[0]);
                     setSort("rating");
+                    setPriceFilter("all");
+                    setShowFavorites(false);
+                    setQuery("");
+                    toast.success(`Selección «${r[1]}» preparada`);
+                    window.setTimeout(
+                      () =>
+                        document
+                          .querySelector(".catalog")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                      50,
+                    );
                   }}
+                  aria-label={`${r[1]}: ver productos recomendados`}
                 >
                   <span>0{i + 1}</span>
                   <h3>{r[1]}</h3>
