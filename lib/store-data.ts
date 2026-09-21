@@ -11,6 +11,12 @@ export const seedProducts = [
   { sku: "PRD-010", name: "Terra Touch", category: "Táctil", description: "Trío de piedras cerámicas con relieves para pausas conscientes.", price: 29.9, stock: 26, accent: "emerald" },
   { sku: "PRD-011", name: "Rain Column", category: "Sonoro", description: "Columna de lluvia ambiental con sonido de agua regulable.", price: 84.5, stock: 12, accent: "blue" },
   { sku: "PRD-012", name: "Quiet Loop", category: "Táctil", description: "Aro sensorial lastrado y flexible con tejido de tacto suave.", price: 32.9, stock: 20, accent: "indigo" },
+  { sku: "PRD-013", name: "Luma Breath", category: "Visual", description: "Lámpara de respiración con pulsos cálidos para marcar un ritmo pausado.", price: 56.9, stock: 22, accent: "amber" },
+  { sku: "PRD-014", name: "Moss Press", category: "Táctil", description: "Cojín de presión para las manos con tejido bouclé de alta densidad.", price: 36.5, stock: 19, accent: "emerald" },
+  { sku: "PRD-015", name: "Drift Radio", category: "Sonoro", description: "Paisajes de naturaleza con control analógico y sonido envolvente.", price: 72, stock: 15, accent: "blue" },
+  { sku: "PRD-016", name: "Ember Arc", category: "Visual", description: "Arco luminoso de sobremesa con tres temperaturas de luz indirecta.", price: 89.9, stock: 10, accent: "orange" },
+  { sku: "PRD-017", name: "Grain Set", category: "Táctil", description: "Cuatro discos de madera con relieves inspirados en formas naturales.", price: 38.9, stock: 28, accent: "rose" },
+  { sku: "PRD-018", name: "Night Current", category: "Sonoro", description: "Altavoz nocturno con ruido marrón, ventilador y luz de orientación.", price: 64.9, stock: 17, accent: "cyan" },
 ];
 export const allowedEvents = new Set(["product.viewed", "cart.item_added", "cart.item_removed", "checkout.started", "order.created", "payment.simulated", "support.requested"]);
 export const orderStatuses = ["CREADO", "PAGO_SIMULADO", "PREPARACIÓN", "ENVIADO", "CANCELADO"] as const;
