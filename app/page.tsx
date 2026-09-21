@@ -3225,6 +3225,12 @@ function SuccessState({
             : " Confirmación preparada en modo académico"}
         </span>
       </div>
+      {success.emailStatus !== "sent" && (
+        <p className="email-mode-note">
+          Este aviso se guarda dentro del prototipo, pero no se envía a un
+          correo externo hasta conectar un proveedor de email.
+        </p>
+      )}
       <button
         className="invoice-download"
         onClick={createPdf}
