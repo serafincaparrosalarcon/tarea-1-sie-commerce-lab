@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import {
   events,
@@ -7,6 +7,7 @@ import {
   orders,
   payments,
   products,
+  coupons,
 } from "../../../db/schema";
 import { sendOrderEmail } from "../../../lib/email";
 import { orderStatuses } from "../../../lib/store-data";
@@ -15,10 +16,13 @@ type IncomingItem = { productId?: number; quantity?: number };
 const money = (value: number) => Math.round(value * 100) / 100;
 const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const db = getDb();
-    const orderRows = await db.select().from(orders).orderBy(desc(orders.id)).limit(50);
+    const email = new URL(request.url).searchParams.get("email")?.trim().toLowerCase();
+    const orderRows = email
+      ? await db.select().from(orders).where(eq(orders.customerEmail, email)).orderBy(desc(orders.id)).limit(50)
+      : await db.select().from(orders).orderBy(desc(orders.id)).limit(50);
     const ids = orderRows.map((row) => row.id);
     const [itemRows, paymentRows, notificationRows] = ids.length
       ? await Promise.all([
@@ -82,7 +86,16 @@ export async function POST(request: Request) {
       return { product, quantity, lineTotal: product.price * quantity };
     });
     const subtotal = money(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-    const discount = body.coupon?.trim().toUpperCase() === "CALMA10" ? money(subtotal * 0.1) : 0;
+    const couponCode = body.coupon?.trim().toUpperCase();
+    let couponRow: typeof coupons.$inferSelect | undefined;
+    if (couponCode && couponCode !== "CALMA10") {
+      [couponRow] = await db.select().from(coupons).where(and(eq(coupons.code, couponCode), eq(coupons.active, true))).limit(1);
+      const now = new Date().toISOString();
+      if (!couponRow || couponRow.startsAt > now || couponRow.endsAt < now || couponRow.usedCount >= couponRow.maxUses || subtotal < couponRow.minimumAmount)
+        return Response.json({ error: "El cupón no es válido para este pedido" }, { status: 400 });
+    }
+    const discountPercent = couponCode === "CALMA10" ? 10 : couponRow?.discountPercent ?? 0;
+    const discount = money(subtotal * discountPercent / 100);
     const shipping = body.shippingMethod === "express" ? 8.95 : subtotal >= 80 ? 0 : 4.95;
     const taxableBase = money(subtotal - discount + shipping);
     const tax = money(taxableBase * 0.21);
@@ -131,6 +144,7 @@ export async function POST(request: Request) {
         payload: JSON.stringify({ method: body.paymentMethod ?? "Tarjeta de prueba", status: "accepted" }),
       },
     ]);
+    if (couponRow) await db.update(coupons).set({ usedCount: couponRow.usedCount + 1 }).where(eq(coupons.id, couponRow.id));
 
     const email = await sendOrderEmail({
       to: customerEmail,

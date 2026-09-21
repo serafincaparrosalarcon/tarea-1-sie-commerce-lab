@@ -15,6 +15,13 @@
       "when": 1790002818649,
       "tag": "0001_broken_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790004899333,
+      "tag": "0002_elite_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
+import AdminHub from "./admin-hub";
+import CustomerOrders from "./customer-orders";
 
 type Product = {
   id: number;
@@ -55,6 +57,8 @@ type Product = {
   price: number;
   stock: number;
   accent: string;
+  imageUrl?: string | null;
+  active?: boolean;
 };
 type Cart = Record<number, number>;
 type OrderItem = {
@@ -534,7 +538,7 @@ const initialCheckout: CheckoutData = {
 };
 
 export default function Home() {
-  const [view, setView] = useState<"shop" | "dashboard" | "orders" | "events">(
+  const [view, setView] = useState<"shop" | "dashboard" | "orders" | "events" | "management" | "accountOrders">(
       "shop",
     ),
     [products, setProducts] = useState<Product[]>(fallbackProducts),
@@ -549,6 +553,7 @@ export default function Home() {
     [checkoutStep, setCheckoutStep] = useState(1),
     [checkoutData, setCheckoutData] = useState<CheckoutData>(initialCheckout),
     [coupon, setCoupon] = useState(""),
+    [couponPercent, setCouponPercent] = useState(0),
     [loading, setLoading] = useState(false),
     [success, setSuccess] = useState<PurchaseSuccess | null>(null),
     [orders, setOrders] = useState<Order[]>([]),
@@ -654,7 +659,7 @@ export default function Home() {
       .filter((x) => x.product),
     cartCount = cartLines.reduce((s, l) => s + l.quantity, 0),
     subtotal = cartLines.reduce((s, l) => s + l.product.price * l.quantity, 0),
-    discount = coupon.trim().toUpperCase() === "CALMA10" ? subtotal * 0.1 : 0,
+    discount = subtotal * couponPercent / 100,
     shipping =
       checkoutData.shipping === "express"
         ? 8.95
@@ -734,6 +739,15 @@ export default function Home() {
       }));
     logEvent("checkout.started", { payload: { itemCount: cartCount } });
   }
+  async function validateCoupon() {
+    if (!coupon.trim()) { setCouponPercent(0); toast.info("Introduce un código"); return; }
+    try {
+      const r = await fetch(`/api/coupons?code=${encodeURIComponent(coupon)}&subtotal=${subtotal}`);
+      const d = await r.json() as { valid?: boolean; discountPercent?: number; minimumAmount?: number };
+      if (!d.valid) { setCouponPercent(0); toast.error(d.minimumAmount ? `Cupón no válido o compra mínima de ${euro.format(d.minimumAmount)}` : "Cupón no válido"); return; }
+      setCouponPercent(d.discountPercent ?? 0); toast.success(`${d.discountPercent}% de descuento aplicado`);
+    } catch { toast.error("No se pudo validar el cupón"); }
+  }
   function validateStep() {
     if (
       checkoutStep === 1 &&
@@ -791,7 +805,7 @@ export default function Home() {
         }),
         data = (await r.json()) as {
           error?: string;
-          order?: { orderNumber: string; total: number };
+          order?: { orderNumber: string; total: number; subtotal: number; discount: number; shipping: number; tax: number };
           emailStatus?: "sent" | "simulated" | "failed";
         };
       if (!r.ok || !data.order)
@@ -799,10 +813,10 @@ export default function Home() {
       setSuccess({
         orderNumber: data.order.orderNumber,
         total: data.order.total,
-        subtotal,
-        discount,
-        shipping,
-        tax,
+        subtotal: data.order.subtotal,
+        discount: data.order.discount,
+        shipping: data.order.shipping,
+        tax: data.order.tax,
         name: checkoutData.name,
         email: checkoutData.email,
         address: checkoutData.address,
@@ -869,6 +883,16 @@ export default function Home() {
     } catch {
       toast.error("No se pudieron cargar los datos internos");
     }
+  }
+  async function loadManagement() {
+    setView("management");
+    try {
+      const [ro, re] = await Promise.all([fetch("/api/orders"), fetch("/api/events")]);
+      const od = await ro.json() as { orders?: Order[] };
+      const ed = await re.json() as { events?: EventRow[] };
+      setOrders(od.orders ?? []);
+      setEvents(ed.events ?? []);
+    } catch { toast.error("No se pudieron cargar los datos de gestión"); }
   }
   async function updateStatus(id: number, status: string) {
     const r = await fetch("/api/orders", {
@@ -964,6 +988,12 @@ export default function Home() {
           >
             Eventos
           </button>
+          <button
+            className={view === "management" ? "active" : ""}
+            onClick={loadManagement}
+          >
+            Gestión
+          </button>
         </nav>
         <div className="header-actions">
           <button className="icon-action" onClick={() => setAccountOpen(true)}>
@@ -1004,6 +1034,10 @@ export default function Home() {
             setShowFavorites(true);
             setAccountOpen(false);
             setView("shop");
+          }}
+          onOrders={() => {
+            setAccountOpen(false);
+            setView("accountOrders");
           }}
         />
       )}
@@ -1138,7 +1172,7 @@ export default function Home() {
             <div className="highlight-products">
               {products.slice(-3).map((p) => (
                 <button key={p.id} onClick={() => setSelectedProduct(p)}>
-                  <img src={productImages[p.sku]} alt={p.name} />
+                  <img src={p.imageUrl || productImages[p.sku]} alt={p.name} />
                   <span>{p.name}</span>
                 </button>
               ))}
@@ -1278,7 +1312,7 @@ export default function Home() {
                 )
                 .map((p) => (
                   <button key={p.id} onClick={() => setSelectedProduct(p)}>
-                    <img src={productImages[p.sku]} alt={p.name} />
+                    <img src={p.imageUrl || productImages[p.sku]} alt={p.name} />
                     <span>
                       <b>{p.name}</b>
                       <small>
@@ -1404,7 +1438,7 @@ export default function Home() {
                 fallbackProducts[13],
                 fallbackProducts[14],
               ].map((p) => (
-                <img key={p.id} src={productImages[p.sku]} alt={p.name} />
+                <img key={p.id} src={p.imageUrl || productImages[p.sku]} alt={p.name} />
               ))}
             </div>
           </section>
@@ -1511,6 +1545,12 @@ export default function Home() {
       {view === "events" && (
         <BackofficeEvents events={events} onShop={() => setView("shop")} />
       )}
+      {view === "management" && (
+        <AdminHub orders={orders} events={events} onProductsChanged={setProducts} />
+      )}
+      {view === "accountOrders" && customer && (
+        <CustomerOrders email={customer.email} onShop={() => setView("shop")} />
+      )}
       {cartOpen && (
         <div
           className="overlay"
@@ -1576,7 +1616,7 @@ export default function Home() {
                     cartLines.map(({ product, quantity }) => (
                       <div className="cart-line" key={product.id}>
                         <img
-                          src={productImages[product.sku]}
+                          src={product.imageUrl || productImages[product.sku]}
                           alt={product.name}
                         />
                         <div>
@@ -1607,17 +1647,11 @@ export default function Home() {
                     <label className="coupon">
                       <input
                         value={coupon}
-                        onChange={(e) => setCoupon(e.target.value)}
+                        onChange={(e) => { setCoupon(e.target.value); setCouponPercent(0); }}
                         placeholder="Código promocional"
                       />
                       <button
-                        onClick={() =>
-                          toast.success(
-                            coupon.trim().toUpperCase() === "CALMA10"
-                              ? "Descuento aplicado"
-                              : "Prueba el código CALMA10",
-                          )
-                        }
+                        onClick={validateCoupon}
                       >
                         Aplicar
                       </button>
@@ -1767,7 +1801,7 @@ function ProductCard({
     <article className="product-card">
       <div className="product-photo-wrap">
         <button className="product-photo" onClick={onOpen}>
-          <img src={productImages[product.sku]} alt={product.name} />
+          <img src={product.imageUrl || productImages[product.sku]} alt={product.name} />
           {d?.badge && <span>{d.badge}</span>}
         </button>
         <button
@@ -1834,7 +1868,7 @@ function ProductDetailModal({
           <X />
         </button>
         <div className="detail-image">
-          <img src={productImages[product.sku]} alt={product.name} />
+          <img src={product.imageUrl || productImages[product.sku]} alt={product.name} />
           {d.badge && <span>{d.badge}</span>}
         </div>
         <div className="detail-copy">
@@ -1900,6 +1934,7 @@ function AccountPanel({
   onSignOut,
   onClose,
   onShopFavorites,
+  onOrders,
 }: {
   customer: Customer | null;
   mode: "login" | "register";
@@ -1913,6 +1948,7 @@ function AccountPanel({
   onSignOut: () => void;
   onClose: () => void;
   onShopFavorites: () => void;
+  onOrders: () => void;
 }) {
   return (
     <div
@@ -1943,15 +1979,18 @@ function AccountPanel({
                 <b>{favorites}</b>
                 <span>Favoritos</span>
               </button>
-              <button>
+              <button onClick={onOrders}>
                 <PackageCheck />
-                <b>—</b>
+                <b>Ver</b>
                 <span>Pedidos demo</span>
               </button>
             </div>
             <div className="account-list">
               <button onClick={onShopFavorites}>
                 <Heart /> Ver favoritos <ArrowRight />
+              </button>
+              <button onClick={onOrders}>
+                <PackageCheck /> Mis pedidos <ArrowRight />
               </button>
               <button
                 onClick={() => toast.info("No hay direcciones guardadas")}
@@ -2435,7 +2474,7 @@ function ToolModal({
               <div>
                 {rec.map((p) => (
                   <article key={p.id}>
-                    <img src={productImages[p.sku]} alt={p.name} />
+                    <img src={p.imageUrl || productImages[p.sku]} alt={p.name} />
                     <span>
                       <b>{p.name}</b>
                       <small>{euro.format(p.price)}</small>
@@ -2526,7 +2565,7 @@ function ToolModal({
                   {compared.map((p) => (
                     <div key={p.id}>
                       {row[1] === "image" ? (
-                        <img src={productImages[p.sku]} alt={p.name} />
+                        <img src={p.imageUrl || productImages[p.sku]} alt={p.name} />
                       ) : row[1] === "price" ? (
                         euro.format(p.price)
                       ) : row[1] === "rating" ? (
@@ -2836,7 +2875,7 @@ function Dashboard({
               .slice(0, 7)
               .map((p) => (
                 <div key={p.id}>
-                  <img src={productImages[p.sku]} alt="" />
+                  <img src={p.imageUrl || productImages[p.sku]} alt="" />
                   <span>
                     <b>{p.name}</b>
                     <small>
@@ -3052,7 +3091,7 @@ function Summary({
       </p>
       {discount > 0 && (
         <p className="discount">
-          <span>Descuento CALMA10</span>
+          <span>Descuento promocional</span>
           <b>−{euro.format(discount)}</b>
         </p>
       )}

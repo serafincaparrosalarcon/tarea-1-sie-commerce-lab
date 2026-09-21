@@ -18,5 +18,5 @@ export const seedProducts = [
   { sku: "PRD-017", name: "Grain Set", category: "Táctil", description: "Cuatro discos de madera con relieves inspirados en formas naturales.", price: 38.9, stock: 28, accent: "rose" },
   { sku: "PRD-018", name: "Night Current", category: "Sonoro", description: "Altavoz nocturno con ruido marrón, ventilador y luz de orientación.", price: 64.9, stock: 17, accent: "cyan" },
 ];
-export const allowedEvents = new Set(["product.viewed", "cart.item_added", "cart.item_removed", "checkout.started", "order.created", "payment.simulated", "support.requested"]);
+export const allowedEvents = new Set(["product.viewed", "cart.item_added", "cart.item_removed", "checkout.started", "order.created", "payment.simulated", "support.requested", "return.requested"]);
 export const orderStatuses = ["CREADO", "PAGO_SIMULADO", "PREPARACIÓN", "ENVIADO", "ENTREGADO", "CANCELADO"] as const;
