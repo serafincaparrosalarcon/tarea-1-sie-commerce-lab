@@ -8,6 +8,13 @@
       "when": 1789922737394,
       "tag": "0000_short_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790002818649,
+      "tag": "0001_broken_darkstar",
+      "breakpoints": true
     }
   ]
 }

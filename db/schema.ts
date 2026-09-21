@@ -11,6 +11,7 @@ export const products = sqliteTable("products", {
 export const users = sqliteTable("users", { id: integer("id").primaryKey({ autoIncrement: true }), alias: text("alias").notNull().unique(), role: text("role").notNull().default("test_customer"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`) });
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }), orderNumber: text("order_number").notNull().unique(), customerAlias: text("customer_alias").notNull(),
+  customerEmail: text("customer_email"),
   subtotal: real("subtotal").notNull(), tax: real("tax").notNull(), shipping: real("shipping").notNull(), discount: real("discount").notNull(), total: real("total").notNull(),
   status: text("status").notNull().default("CREADO"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
@@ -25,6 +26,15 @@ export const payments = sqliteTable("payments", {
 export const events = sqliteTable("events", {
   id: integer("id").primaryKey({ autoIncrement: true }), eventType: text("event_type").notNull(), sessionId: text("session_id").notNull(), productId: integer("product_id"), orderId: integer("order_id"),
   payload: text("payload").notNull().default("{}"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+export const orderNotifications = sqliteTable("order_notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id").notNull().references(() => orders.id),
+  recipient: text("recipient").notNull(),
+  template: text("template").notNull(),
+  deliveryStatus: text("delivery_status").notNull().default("SIMULATED"),
+  providerId: text("provider_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 export const supportRequests = sqliteTable("support_requests", {
   id: integer("id").primaryKey({ autoIncrement: true }), alias: text("alias").notNull(), subject: text("subject").notNull(), status: text("status").notNull().default("ABIERTO"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

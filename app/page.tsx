@@ -68,6 +68,7 @@ type Order = {
   id: number;
   orderNumber: string;
   customerAlias: string;
+  customerEmail?: string | null;
   subtotal: number;
   tax: number;
   shipping: number;
@@ -76,6 +77,13 @@ type Order = {
   status: string;
   createdAt: string;
   items: OrderItem[];
+  notifications?: OrderNotification[];
+};
+type OrderNotification = {
+  id: number;
+  template: string;
+  deliveryStatus: string;
+  createdAt: string;
 };
 type EventRow = {
   id: number;
@@ -99,6 +107,22 @@ type CheckoutData = {
   expiry: string;
   cvv: string;
   notes: string;
+};
+type PurchaseSuccess = {
+  orderNumber: string;
+  total: number;
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  tax: number;
+  name: string;
+  email: string;
+  address: string;
+  city: string;
+  postal: string;
+  date: string;
+  emailStatus: "sent" | "simulated" | "failed";
+  items: { name: string; quantity: number; unitPrice: number }[];
 };
 
 const fallbackProducts: Product[] = [
@@ -490,6 +514,7 @@ const statusLabel: Record<string, string> = {
   PAGO_SIMULADO: "Pago simulado",
   PREPARACIÓN: "Preparación",
   ENVIADO: "Enviado",
+  ENTREGADO: "Entregado",
   CANCELADO: "Cancelado",
 };
 const initialCheckout: CheckoutData = {
@@ -525,10 +550,7 @@ export default function Home() {
     [checkoutData, setCheckoutData] = useState<CheckoutData>(initialCheckout),
     [coupon, setCoupon] = useState(""),
     [loading, setLoading] = useState(false),
-    [success, setSuccess] = useState<{
-      orderNumber: string;
-      total: number;
-    } | null>(null),
+    [success, setSuccess] = useState<PurchaseSuccess | null>(null),
     [orders, setOrders] = useState<Order[]>([]),
     [events, setEvents] = useState<EventRow[]>([]),
     [backendReady, setBackendReady] = useState(true),
@@ -753,8 +775,10 @@ export default function Home() {
           body: JSON.stringify({
             customerAlias:
               checkoutData.name || customer?.name || "CLIENTE-PRUEBA",
+            customerEmail: checkoutData.email,
             sessionId,
             coupon,
+            shippingMethod: checkoutData.shipping,
             paymentMethod:
               checkoutData.payment === "card"
                 ? "Tarjeta de prueba"
@@ -768,12 +792,29 @@ export default function Home() {
         data = (await r.json()) as {
           error?: string;
           order?: { orderNumber: string; total: number };
+          emailStatus?: "sent" | "simulated" | "failed";
         };
       if (!r.ok || !data.order)
         throw new Error(data.error || "No se pudo crear el pedido");
       setSuccess({
         orderNumber: data.order.orderNumber,
         total: data.order.total,
+        subtotal,
+        discount,
+        shipping,
+        tax,
+        name: checkoutData.name,
+        email: checkoutData.email,
+        address: checkoutData.address,
+        city: checkoutData.city,
+        postal: checkoutData.postal,
+        date: new Date().toISOString(),
+        emailStatus: data.emailStatus ?? "simulated",
+        items: cartLines.map((l) => ({
+          name: l.product.name,
+          quantity: l.quantity,
+          unitPrice: l.product.price,
+        })),
       });
       localStorage.setItem(
         "sensoria-last-order",
@@ -783,8 +824,14 @@ export default function Home() {
           items: cartLines.map((l) => ({
             name: l.product.name,
             quantity: l.quantity,
+            unitPrice: l.product.price,
           })),
         }),
+      );
+      toast.success(
+        data.emailStatus === "sent"
+          ? `Confirmación enviada a ${checkoutData.email}`
+          : "Confirmación registrada en modo académico",
       );
       setCart({});
       setCheckout(false);
@@ -830,10 +877,17 @@ export default function Home() {
       body: JSON.stringify({ orderId: id, status }),
     });
     if (r.ok) {
+      const data = (await r.json()) as {
+        emailStatus?: "sent" | "simulated" | "failed";
+      };
       setOrders((rows) =>
         rows.map((row) => (row.id === id ? { ...row, status } : row)),
       );
-      toast.success("Estado actualizado");
+      toast.success(
+        data.emailStatus === "sent"
+          ? "Estado actualizado y correo enviado al comprador"
+          : "Estado actualizado y aviso registrado en modo académico",
+      );
     } else toast.error("No se pudo actualizar");
   }
   function addBundle() {
@@ -869,18 +923,6 @@ export default function Home() {
     ]);
     setChatInput("");
   }
-  function downloadInvoice(order: { orderNumber: string; total: number }) {
-    const html = `<!doctype html><html><meta charset="utf-8"><title>Factura ${order.orderNumber}</title><style>body{font-family:Arial;padding:50px;color:#102237}h1{color:#244a68}.box{border:1px solid #ddd;padding:24px;margin-top:30px}small{color:#777}</style><h1>Sensoria</h1><p>Factura académica de demostración</p><div class="box"><b>Pedido:</b> ${order.orderNumber}<br><b>Total:</b> ${euro.format(order.total)}<br><b>Estado:</b> Pago simulado aceptado</div><p><small>No constituye una factura fiscal ni acredita una compra real.</small></p></html>`;
-    const blob = new Blob([html], { type: "text/html" }),
-      url = URL.createObjectURL(blob),
-      a = document.createElement("a");
-    a.href = url;
-    a.download = `Factura-${order.orderNumber}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Factura académica descargada");
-  }
-
   return (
     <div className="sensoria-app">
       <Toaster position="top-center" richColors />
@@ -2881,6 +2923,11 @@ function BackofficeOrders({
                   <span className="order-number">{o.orderNumber}</span>
                   <h3>{o.customerAlias}</h3>
                   <p>{new Date(o.createdAt).toLocaleString("es-ES")}</p>
+                  {o.customerEmail && (
+                    <p className="order-email">
+                      <Mail /> {o.customerEmail}
+                    </p>
+                  )}
                 </div>
                 <strong>{euro.format(o.total)}</strong>
               </div>
@@ -2904,12 +2951,26 @@ function BackofficeOrders({
                     "PAGO_SIMULADO",
                     "PREPARACIÓN",
                     "ENVIADO",
+                    "ENTREGADO",
                     "CANCELADO",
                   ].map((s) => (
                     <option key={s}>{s}</option>
                   ))}
                 </select>
               </div>
+              {!!o.notifications?.length && (
+                <div className="notification-history">
+                  <Mail />
+                  <span>
+                    Último aviso: {statusLabel[o.notifications.at(-1)!.template] ?? o.notifications.at(-1)!.template}
+                    <small>
+                      {o.notifications.at(-1)!.deliveryStatus === "SENT"
+                        ? "Correo enviado"
+                        : "Simulación registrada"}
+                    </small>
+                  </span>
+                </div>
+              )}
             </article>
           ))}
         </div>
@@ -3014,15 +3075,130 @@ function SuccessState({
   success,
   onContinue,
 }: {
-  success: { orderNumber: string; total: number };
+  success: PurchaseSuccess;
   onContinue: () => void;
 }) {
-  const invoice =
-    "SENSORIA · FACTURA ACADÉMICA\nPedido: " +
-    success.orderNumber +
-    "\nTotal: " +
-    euro.format(success.total) +
-    "\nEstado: pago simulado aceptado\n\nEste documento no constituye una factura fiscal.";
+  const createPdf = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const navy = [16, 42, 60] as const;
+    const blue = [49, 95, 120] as const;
+    const amber = [255, 195, 107] as const;
+    const soft = [238, 243, 245] as const;
+    const money = (value: number) => `${value.toFixed(2).replace(".", ",")} EUR`;
+
+    doc.setFillColor(...navy);
+    doc.rect(0, 0, 210, 52, "F");
+    doc.setFillColor(...amber);
+    doc.roundedRect(16, 14, 13, 13, 3, 3, "F");
+    doc.setTextColor(16, 42, 60);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("S", 22.5, 23, { align: "center" });
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.text("SENSORIA", 35, 23);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(190, 208, 219);
+    doc.text("INSTRUMENTOS DE BIENESTAR SENSORIAL", 35, 30);
+    doc.setTextColor(...amber);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("FACTURA ACADEMICA", 194, 20, { align: "right" });
+    doc.setTextColor(220, 231, 237);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(success.orderNumber, 194, 27, { align: "right" });
+    doc.text(new Date(success.date).toLocaleDateString("es-ES"), 194, 33, {
+      align: "right",
+    });
+
+    doc.setTextColor(...navy);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("DATOS DEL CLIENTE", 16, 67);
+    doc.text("RESUMEN DEL PEDIDO", 112, 67);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(75, 96, 110);
+    doc.text(success.name, 16, 75);
+    doc.text(success.email, 16, 81);
+    doc.text(success.address, 16, 87);
+    doc.text(`${success.postal} ${success.city}`, 16, 93);
+    doc.text("Estado", 112, 75);
+    doc.text("Pago simulado aceptado", 194, 75, { align: "right" });
+    doc.text("Entrega", 112, 82);
+    doc.text(success.shipping ? "Envio seleccionado" : "Envio gratuito", 194, 82, {
+      align: "right",
+    });
+
+    let y = 108;
+    doc.setFillColor(...blue);
+    doc.roundedRect(16, y - 7, 178, 11, 2, 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("PRODUCTO", 20, y);
+    doc.text("UDS.", 139, y, { align: "center" });
+    doc.text("PRECIO", 163, y, { align: "right" });
+    doc.text("IMPORTE", 190, y, { align: "right" });
+    y += 11;
+    success.items.forEach((item, index) => {
+      if (index % 2 === 0) {
+        doc.setFillColor(...soft);
+        doc.rect(16, y - 6, 178, 10, "F");
+      }
+      doc.setTextColor(35, 55, 70);
+      doc.setFont("helvetica", "normal");
+      doc.text(item.name, 20, y);
+      doc.text(String(item.quantity), 139, y, { align: "center" });
+      doc.text(money(item.unitPrice), 163, y, { align: "right" });
+      doc.text(money(item.unitPrice * item.quantity), 190, y, {
+        align: "right",
+      });
+      y += 10;
+    });
+
+    y += 8;
+    const totals = [
+      ["Subtotal", success.subtotal],
+      ["Descuento", -success.discount],
+      ["Envio", success.shipping],
+      ["IVA (21 %)", success.tax],
+    ] as const;
+    totals.forEach(([label, value]) => {
+      doc.setTextColor(87, 106, 118);
+      doc.text(label, 145, y, { align: "right" });
+      doc.setTextColor(...navy);
+      doc.text(money(value), 190, y, { align: "right" });
+      y += 7;
+    });
+    doc.setFillColor(...amber);
+    doc.roundedRect(112, y, 82, 17, 3, 3, "F");
+    doc.setTextColor(...navy);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("TOTAL", 120, y + 10.5);
+    doc.setFontSize(14);
+    doc.text(money(success.total), 190, y + 10.5, { align: "right" });
+
+    doc.setFillColor(...soft);
+    doc.roundedRect(16, 250, 178, 23, 3, 3, "F");
+    doc.setTextColor(...blue);
+    doc.setFontSize(9);
+    doc.text("Gracias por crear tu ritual con Sensoria.", 22, 260);
+    doc.setTextColor(95, 113, 124);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(
+      "Documento academico de demostracion. No constituye una factura fiscal ni acredita una compra real.",
+      22,
+      267,
+    );
+    doc.save(`Factura-${success.orderNumber}.pdf`);
+    toast.success("Factura PDF descargada");
+  };
   return (
     <div className="success-state">
       <span>
@@ -3043,16 +3219,18 @@ function SuccessState({
           <CreditCard /> Pago de prueba aceptado
         </span>
         <span>
-          <Mail /> Confirmación simulada
+          <Mail />
+          {success.emailStatus === "sent"
+            ? ` Confirmación enviada a ${success.email}`
+            : " Confirmación preparada en modo académico"}
         </span>
       </div>
-      <a
+      <button
         className="invoice-download"
-        download={`Factura-${success.orderNumber}.txt`}
-        href={"data:text/plain;charset=utf-8," + encodeURIComponent(invoice)}
+        onClick={createPdf}
       >
-        <FileText /> Descargar factura académica
-      </a>
+        <FileText /> Descargar factura PDF
+      </button>
       <button className="primary" onClick={onContinue}>
         Seguir comprando
       </button>

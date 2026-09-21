@@ -19,4 +19,4 @@ export const seedProducts = [
   { sku: "PRD-018", name: "Night Current", category: "Sonoro", description: "Altavoz nocturno con ruido marrón, ventilador y luz de orientación.", price: 64.9, stock: 17, accent: "cyan" },
 ];
 export const allowedEvents = new Set(["product.viewed", "cart.item_added", "cart.item_removed", "checkout.started", "order.created", "payment.simulated", "support.requested"]);
-export const orderStatuses = ["CREADO", "PAGO_SIMULADO", "PREPARACIÓN", "ENVIADO", "CANCELADO"] as const;
+export const orderStatuses = ["CREADO", "PAGO_SIMULADO", "PREPARACIÓN", "ENVIADO", "ENTREGADO", "CANCELADO"] as const;
