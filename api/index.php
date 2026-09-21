@@ -2,6 +2,7 @@
 declare(strict_types=1);
 session_start();
 require dirname(__DIR__) . '/config.php';
+require dirname(__DIR__) . '/lib/notifications.php';
 
 $action = (string)($_GET['action'] ?? '');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -48,8 +49,10 @@ try {
         $stmt=$pdo->prepare('INSERT INTO orders(order_number,user_id,customer_name,customer_email,phone,address,city,postal_code,subtotal,discount,shipping,tax,total,coupon_code,payment_method) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$stmt->execute([$number,$user['id']??null,trim((string)($b['name']??'')),$email,trim((string)($b['phone']??'')),trim((string)($b['address']??'')),trim((string)($b['city']??'')),trim((string)($b['postal']??'')),$subtotal,$discount,$shipping,$tax,$total,$coupon?:null,(string)($b['payment']??'Tarjeta de prueba')]);$orderId=(int)$pdo->lastInsertId();
         $itemStmt=$pdo->prepare('INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price) VALUES(?,?,?,?,?)');$stockStmt=$pdo->prepare('UPDATE products SET stock=stock-? WHERE id=?');foreach($lines as[$p,$q]){$itemStmt->execute([$orderId,$p['id'],$p['name'],$q,$p['price']]);$stockStmt->execute([$q,$p['id']]);}
         if($couponId){$pdo->prepare('UPDATE coupons SET used_count=used_count+1 WHERE id=?')->execute([$couponId]);}
-        $pdo->prepare('INSERT INTO notifications(order_id,recipient,template) VALUES(?,?,\'PAGO_SIMULADO\')')->execute([$orderId,$email]);$pdo->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(\'order.created\',?,?,?)')->execute([(string)($b['session_id']??'WEB'),$orderId,json_encode(['total'=>$total])]);$pdo->commit();
-        respond(['order'=>['id'=>$orderId,'order_number'=>$number,'subtotal'=>$subtotal,'discount'=>$discount,'shipping'=>$shipping,'tax'=>$tax,'total'=>$total,'status'=>'PAGO_SIMULADO']],201);
+        $pdo->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(\'order.created\',?,?,?)')->execute([(string)($b['session_id']??'WEB'),$orderId,json_encode(['total'=>$total])]);$pdo->commit();
+        $order=['id'=>$orderId,'order_number'=>$number,'customer_name'=>trim((string)($b['name']??'')),'customer_email'=>$email,'phone'=>trim((string)($b['phone']??'')),'subtotal'=>$subtotal,'discount'=>$discount,'shipping'=>$shipping,'tax'=>$tax,'total'=>$total,'status'=>'PAGO_SIMULADO'];
+        try {$notifications=dispatch_order_notifications($pdo,$order,'PAGO_SIMULADO');}catch(Throwable $notificationError){$notifications=[['channel'=>'SISTEMA','recipient'=>'','delivery_status'=>'ERROR','error_message'=>'Ejecuta migration_002_notifications.sql']];}
+        respond(['order'=>$order,'notifications'=>$notifications],201);
     }
 
     if ($action === 'my_orders' && $method === 'GET') {
@@ -61,7 +64,7 @@ try {
     }
 
     if ($action === 'admin_data' && $method === 'GET') {
-        require_admin();$orders=attach_order_data(db()->query('SELECT * FROM orders ORDER BY id DESC LIMIT 100')->fetchAll());$products=db()->query('SELECT * FROM products ORDER BY id')->fetchAll();$coupons=db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();$returns=db()->query('SELECT r.*,o.order_number,o.customer_name FROM returns r JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC')->fetchAll();$notifications=db()->query('SELECT n.*,o.order_number FROM notifications n JOIN orders o ON o.id=n.order_id ORDER BY n.id DESC LIMIT 100')->fetchAll();$events=db()->query('SELECT * FROM events ORDER BY id DESC LIMIT 200')->fetchAll();respond(compact('orders','products','coupons','returns','notifications','events'));
+        require_admin();$orders=attach_order_data(db()->query('SELECT * FROM orders ORDER BY id DESC LIMIT 100')->fetchAll());$products=db()->query('SELECT * FROM products ORDER BY id')->fetchAll();$coupons=db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();$returns=db()->query('SELECT r.*,o.order_number,o.customer_name FROM returns r JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC')->fetchAll();$notifications=db()->query('SELECT n.*,o.order_number FROM notifications n JOIN orders o ON o.id=n.order_id ORDER BY n.id DESC LIMIT 100')->fetchAll();$events=db()->query('SELECT * FROM events ORDER BY id DESC LIMIT 200')->fetchAll();$notification_config=['email_enabled'=>MAIL_ENABLED,'sms_enabled'=>SMS_ENABLED,'from_email'=>MAIL_ENABLED?SMTP_FROM_EMAIL:null,'sms_sender'=>SMS_ENABLED?TWILIO_FROM_NUMBER:null];respond(compact('orders','products','coupons','returns','notifications','events','notification_config'));
     }
 
     if ($action === 'crm' && $method === 'GET') {
@@ -69,7 +72,7 @@ try {
     }
 
     if ($action === 'order_status' && $method === 'POST') {
-        require_admin();$b=json_input();$valid=['PAGO_SIMULADO','PREPARACION','ENVIADO','ENTREGADO','CANCELADO'];$status=(string)($b['status']??'');if(!in_array($status,$valid,true))respond(['error'=>'Estado no válido'],422);$stmt=db()->prepare('UPDATE orders SET status=? WHERE id=?');$stmt->execute([$status,(int)$b['id']]);$stmt=db()->prepare('SELECT customer_email FROM orders WHERE id=?');$stmt->execute([(int)$b['id']]);$email=$stmt->fetchColumn();db()->prepare('INSERT INTO notifications(order_id,recipient,template) VALUES(?,?,?)')->execute([(int)$b['id'],$email,$status]);respond(['ok'=>true]);
+        require_admin();$b=json_input();$valid=['PAGO_SIMULADO','PREPARACION','ENVIADO','ENTREGADO','CANCELADO'];$status=(string)($b['status']??'');if(!in_array($status,$valid,true))respond(['error'=>'Estado no válido'],422);$pdo=db();$stmt=$pdo->prepare('UPDATE orders SET status=? WHERE id=?');$stmt->execute([$status,(int)$b['id']]);$stmt=$pdo->prepare('SELECT * FROM orders WHERE id=?');$stmt->execute([(int)$b['id']]);$order=$stmt->fetch();if(!$order)respond(['error'=>'Pedido no encontrado'],404);$notifications=dispatch_order_notifications($pdo,$order,$status);respond(['ok'=>true,'notifications'=>$notifications]);
     }
 
     if ($action === 'product_save' && $method === 'POST') {

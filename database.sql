@@ -88,11 +88,19 @@ CREATE TABLE IF NOT EXISTS returns (
 CREATE TABLE IF NOT EXISTS notifications (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id INT UNSIGNED NOT NULL,
-  recipient VARCHAR(190) NOT NULL,
+  channel ENUM('EMAIL','SMS') NOT NULL,
+  recipient_email VARCHAR(190) NULL,
+  recipient_phone VARCHAR(30) NULL,
   template VARCHAR(50) NOT NULL,
+  subject VARCHAR(190) NOT NULL,
+  body TEXT NOT NULL,
   delivery_status ENUM('SIMULADO','ENVIADO','ERROR') NOT NULL DEFAULT 'SIMULADO',
+  provider_id VARCHAR(190) NULL,
+  error_message VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_notifications_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  CONSTRAINT fk_notifications_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  INDEX idx_notifications_order_channel (order_id, channel),
+  INDEX idx_notifications_status_created (delivery_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS events (

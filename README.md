@@ -10,7 +10,8 @@ Tienda académica de instrumentos de bienestar sensorial. Esta edición está pr
 - Área personal con pedidos, seguimiento, factura imprimible y devoluciones.
 - Gestión de productos, stock, pedidos y estados.
 - CRM con segmentación automática de clientes.
-- Previsualización e historial de comunicaciones simuladas.
+- Correos HTML y SMS automáticos en la confirmación y en cada cambio de estado.
+- Historial de comunicaciones con canal, destinatario, resultado y error técnico.
 - Informes CSV y resumen imprimible en PDF.
 - Gestión de devoluciones y reembolsos simulados.
 - Creación y activación de promociones.
@@ -31,6 +32,7 @@ Tienda académica de instrumentos de bienestar sensorial. Esta edición está pr
 5. Crea la cuenta administradora.
 6. Elimina `install.php` del servidor después de instalar.
 7. Entra en `https://tu-dominio.es/`.
+8. Si quieres avisos reales, configura el correo del dominio y Twilio siguiendo `CONFIGURAR_AVISOS.md`.
 
 Consulta [SUBIR_A_DONDOMINIO.md](SUBIR_A_DONDOMINIO.md) para ver el proceso completo.
 
@@ -42,7 +44,7 @@ La cuenta administradora se crea durante la instalación. Después de iniciar se
 
 - No existen cobros reales.
 - No se deben introducir tarjetas reales.
-- Los correos y reembolsos son simulados.
+- Los cobros y reembolsos son simulados. Los avisos pueden ser reales si el administrador activa sus credenciales.
 - Las contraseñas se almacenan con `password_hash`.
 - Las consultas utilizan PDO y parámetros preparados.
 
@@ -54,7 +56,10 @@ config.php            Conexión con MySQL
 install.php           Instalador inicial
 database.sql          Estructura y catálogo base
 api/index.php         Operaciones de tienda y administración
+lib/notifications.php Envío SMTP, SMS y plantillas de avisos
 assets/styles.css     Diseño responsive
 assets/app.js         Interacciones de la aplicación
 assets/products/      Fotografías optimizadas del catálogo
 ```
+
+Si instalaste una versión anterior, ejecuta una sola vez `migration_002_notifications.sql` desde phpMyAdmin antes de probar los nuevos avisos.

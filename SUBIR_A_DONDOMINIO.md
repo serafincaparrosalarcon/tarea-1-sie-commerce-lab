@@ -61,7 +61,7 @@ Después de ver el mensaje de éxito:
 - El código `CALMA10` aplica un 10 %.
 - Una compra genera pedido y factura académica.
 - El pedido aparece en el área personal y en Gestión.
-- Los cambios de estado generan avisos simulados.
+- La confirmación y los cambios de estado registran correo y SMS.
 - Las devoluciones aparecen en el panel.
 - Los informes CSV se descargan correctamente.
 
@@ -72,3 +72,17 @@ Revisa los cuatro valores de `config.php`. En algunos planes el servidor MySQL n
 ## Tamaño y compatibilidad
 
 El proyecto evita frameworks de servidor, paquetes de Node.js y archivos innecesarios. Las fotografías están comprimidas y la aplicación funciona con PHP/MySQL estándar para facilitar su traslado al hosting académico.
+
+## Activar los avisos reales
+
+La web funciona sin servicios externos y registra los avisos como `SIMULADO`. Para enviarlos de verdad:
+
+1. Crea en DonDominio una cuenta de correo del mismo dominio, por ejemplo `pedidos@tu-dominio.es`.
+2. Completa la sección SMTP de `config.php` y cambia `MAIL_ENABLED` a `true`.
+3. Para SMS, crea una cuenta y un número emisor en Twilio, completa sus tres valores y cambia `SMS_ENABLED` a `true`.
+4. Usa teléfonos en formato internacional, por ejemplo `+34600111222`. Los números españoles de nueve cifras también se convierten automáticamente.
+5. Haz un pedido de prueba y comprueba el apartado **Gestión → Comunicaciones**.
+
+Las claves solo deben estar en el `config.php` del servidor. No las subas nunca a GitHub. Los SMS dependen de un proveedor de pago; dejar `SMS_ENABLED` en `false` mantiene una demostración completa sin coste.
+
+Si ya habías instalado la versión anterior, importa primero `migration_002_notifications.sql` desde phpMyAdmin.
