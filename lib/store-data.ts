@@ -7,6 +7,10 @@ export const seedProducts = [
   { sku: "PRD-006", name: "Cloud Weight", category: "Táctil", description: "Cojín lastrado de sobremesa para favorecer una pausa consciente.", price: 42.9, stock: 16, accent: "cyan" },
   { sku: "PRD-007", name: "Hush One", category: "Sonoro", description: "Dispositivo de sonido ambiental con seis paisajes relajantes.", price: 59.9, stock: 21, accent: "indigo" },
   { sku: "PRD-008", name: "Tide Pocket", category: "Sonoro", description: "Generador portátil de ruido blanco, lluvia y oleaje.", price: 34.95, stock: 37, accent: "amber" },
+  { sku: "PRD-009", name: "Prism Flow", category: "Visual", description: "Prisma luminoso que proyecta reflejos de color suaves y cambiantes.", price: 68.9, stock: 14, accent: "violet" },
+  { sku: "PRD-010", name: "Terra Touch", category: "Táctil", description: "Trío de piedras cerámicas con relieves para pausas conscientes.", price: 29.9, stock: 26, accent: "emerald" },
+  { sku: "PRD-011", name: "Rain Column", category: "Sonoro", description: "Columna de lluvia ambiental con sonido de agua regulable.", price: 84.5, stock: 12, accent: "blue" },
+  { sku: "PRD-012", name: "Quiet Loop", category: "Táctil", description: "Aro sensorial lastrado y flexible con tejido de tacto suave.", price: 32.9, stock: 20, accent: "indigo" },
 ];
 export const allowedEvents = new Set(["product.viewed", "cart.item_added", "cart.item_removed", "checkout.started", "order.created", "payment.simulated", "support.requested"]);
 export const orderStatuses = ["CREADO", "PAGO_SIMULADO", "PREPARACIÓN", "ENVIADO", "CANCELADO"] as const;
