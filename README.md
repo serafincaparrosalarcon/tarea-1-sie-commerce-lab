@@ -1,12 +1,12 @@
-# Commerce Lab
+# Sensoria
 
-Prototipo académico de un canal digital de venta para la asignatura **Sistemas de Información Empresarial**. La identidad y el catálogo son provisionales para poder adaptar la solución al tema definitivo sin rehacer la arquitectura.
+Prototipo académico de un canal digital de venta para la asignatura **Sistemas de Información Empresarial**. Sensoria ofrece instrumentos de bienestar sensorial y relajación para adultos mediante un catálogo permanente organizado en las categorías visual, táctil y sonora.
 
 ## Funcionalidades terminadas
 
-- Catálogo persistente con 8 productos, categorías, buscador y stock.
+- Catálogo persistente con 8 productos de bienestar visual, táctil y sonoro, buscador y stock.
 - Carrito con modificación de cantidades y eliminación de artículos.
-- Reglas comerciales: cupón `AULA10`, envío gratuito desde 80 € e IVA del 21 %.
+- Reglas comerciales: cupón `CALMA10`, envío gratuito desde 80 € e IVA del 21 %.
 - Checkout con alias ficticio y tarjeta de prueba.
 - Pago simulado e identificador único de pedido.
 - Persistencia de pedidos, líneas de pedido y pagos.
@@ -34,9 +34,11 @@ pnpm run dev
 
 No se necesitan claves de pago ni datos personales reales.
 
-## Decisiones de diseño
+## Identidad y decisiones de diseño
 
-- Se ha utilizado una identidad neutra para que el tema final solo requiera cambiar textos, colores y productos.
+- La identidad Sensoria utiliza azul petróleo, índigo y ámbar para comunicar calma sin recurrir a una estética infantil o clínica.
+- El catálogo se mantiene estable por categoría sensorial: Visual, Táctil y Sonoro.
+- La página principal combina una imagen ambiental con acceso directo a cada categoría.
 - Los cálculos importantes se repiten y validan en el servidor; el total enviado por el navegador nunca se acepta como fuente fiable.
 - Los identificadores de pedido se generan en el servidor y son únicos.
 - Los eventos se guardan con una sesión anónima y un `payload` limitado.
@@ -51,9 +53,6 @@ Validación realizada por el equipo: compilación de TypeScript, creación e ins
 
 Ejemplo de incidencia detectada y corregida: la primera comprobación de TypeScript señaló respuestas JSON sin tipo conocido; se añadieron tipos explícitos antes de compilar de nuevo.
 
-## Cambios pendientes cuando llegue el tema
+## Estado del proyecto
 
-1. Sustituir `Commerce Lab` por el nombre definitivo.
-2. Cambiar categorías, nombres, descripciones, precios e imágenes.
-3. Ajustar las reglas comerciales si el caso práctico lo exige.
-4. Actualizar esta documentación y la memoria con las decisiones finales.
+La identidad, las categorías, el catálogo y la experiencia de compra están adaptados al tema definitivo. Queda pendiente incorporar al resto del equipo como colaboradores y documentar sus aportaciones mediante commits propios.
