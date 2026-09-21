@@ -1,58 +1,60 @@
-# Sensoria
+# Sensoria — versión DonDominio
 
-Prototipo académico de un canal digital de venta para la asignatura **Sistemas de Información Empresarial**. Sensoria ofrece instrumentos de bienestar sensorial y relajación para adultos mediante un catálogo permanente organizado en las categorías visual, táctil y sonora.
+Tienda académica de instrumentos de bienestar sensorial. Esta edición está preparada para un hosting compartido con **PHP 8+ y MySQL/MariaDB**, sin Node.js, servicios de ChatGPT ni bases de datos externas.
 
-## Funcionalidades terminadas
+## Funcionalidades
 
-- Catálogo persistente con 8 productos de bienestar visual, táctil y sonoro, buscador y stock.
-- Carrito con modificación de cantidades y eliminación de artículos.
-- Reglas comerciales: cupón `CALMA10`, envío gratuito desde 80 € e IVA del 21 %.
-- Checkout con alias ficticio y tarjeta de prueba.
-- Pago simulado e identificador único de pedido.
-- Persistencia de pedidos, líneas de pedido y pagos.
-- Zona interna de pedidos con cambio de estado.
-- Registro de eventos: `product.viewed`, `cart.item_added`, `cart.item_removed`, `checkout.started`, `order.created` y `payment.simulated`.
-- Diseño responsive para ordenador y móvil.
-- Aviso visible de prototipo académico y prohibición de introducir datos reales.
+- Catálogo permanente con 18 productos, búsqueda, filtros y fichas detalladas.
+- Carrito, cupones, checkout y pago completamente simulado.
+- Registro e inicio de sesión de clientes.
+- Área personal con pedidos, seguimiento, factura imprimible y devoluciones.
+- Gestión de productos, stock, pedidos y estados.
+- CRM con segmentación automática de clientes.
+- Previsualización e historial de comunicaciones simuladas.
+- Informes CSV y resumen imprimible en PDF.
+- Gestión de devoluciones y reembolsos simulados.
+- Creación y activación de promociones.
+- Diseño responsive y accesible para móvil y ordenador.
 
-## Arquitectura
+## Requisitos
 
-- Interfaz: React + TypeScript.
-- Aplicación: Next.js/Vinext.
-- Persistencia: Cloudflare D1 (SQLite) y Drizzle ORM.
-- Despliegue: Cloudflare Workers mediante Sites.
+- PHP 8.0 o superior con PDO MySQL.
+- MySQL 5.7+ o MariaDB equivalente.
+- Apache con `.htaccess` habilitado, recomendado.
 
-Tablas: `products`, `users`, `orders`, `order_items`, `payments`, `events` y `support_requests`.
+## Instalación rápida
 
-## Puesta en marcha
+1. Crea una base de datos MySQL en DonDominio.
+2. Edita `config.php` con servidor, nombre, usuario y contraseña de la base de datos.
+3. Sube todos los archivos a la carpeta web del dominio mediante FTP.
+4. Abre `https://tu-dominio.es/install.php`.
+5. Crea la cuenta administradora.
+6. Elimina `install.php` del servidor después de instalar.
+7. Entra en `https://tu-dominio.es/`.
 
-```bash
-pnpm install
-pnpm run db:generate
-pnpm run dev
+Consulta [SUBIR_A_DONDOMINIO.md](SUBIR_A_DONDOMINIO.md) para ver el proceso completo.
+
+## Acceso de administración
+
+La cuenta administradora se crea durante la instalación. Después de iniciar sesión, utiliza el botón **Gestión**.
+
+## Seguridad académica
+
+- No existen cobros reales.
+- No se deben introducir tarjetas reales.
+- Los correos y reembolsos son simulados.
+- Las contraseñas se almacenan con `password_hash`.
+- Las consultas utilizan PDO y parámetros preparados.
+
+## Estructura
+
+```text
+index.php             Tienda y panel principal
+config.php            Conexión con MySQL
+install.php           Instalador inicial
+database.sql          Estructura y catálogo base
+api/index.php         Operaciones de tienda y administración
+assets/styles.css     Diseño responsive
+assets/app.js         Interacciones de la aplicación
+assets/products/      Fotografías optimizadas del catálogo
 ```
-
-No se necesitan claves de pago ni datos personales reales.
-
-## Identidad y decisiones de diseño
-
-- La identidad Sensoria utiliza azul petróleo, índigo y ámbar para comunicar calma sin recurrir a una estética infantil o clínica.
-- El catálogo se mantiene estable por categoría sensorial: Visual, Táctil y Sonoro.
-- La página principal combina una imagen ambiental con acceso directo a cada categoría.
-- Los cálculos importantes se repiten y validan en el servidor; el total enviado por el navegador nunca se acepta como fuente fiable.
-- Los identificadores de pedido se generan en el servidor y son únicos.
-- Los eventos se guardan con una sesión anónima y un `payload` limitado.
-
-## Uso de IA generativa
-
-Herramienta utilizada: ChatGPT/Codex.
-
-Usos: propuesta inicial de arquitectura, generación de la base de código, revisión del modelo de datos, diseño responsive y apoyo en la documentación.
-
-Validación realizada por el equipo: compilación de TypeScript, creación e inspección de la migración SQL y construcción completa de la aplicación. Antes de la entrega, cada integrante deberá recorrer manualmente el flujo de compra y poder explicar sus partes.
-
-Ejemplo de incidencia detectada y corregida: la primera comprobación de TypeScript señaló respuestas JSON sin tipo conocido; se añadieron tipos explícitos antes de compilar de nuevo.
-
-## Estado del proyecto
-
-La identidad, las categorías, el catálogo y la experiencia de compra están adaptados al tema definitivo. Queda pendiente incorporar al resto del equipo como colaboradores y documentar sus aportaciones mediante commits propios.
