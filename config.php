@@ -32,6 +32,14 @@ const TWILIO_ACCOUNT_SID = 'TU_ACCOUNT_SID';
 const TWILIO_AUTH_TOKEN = 'TU_AUTH_TOKEN';
 const TWILIO_FROM_NUMBER = '+10000000000';
 
+
+const PAYPAL_MODE = 'sandbox'; // cambia a 'live' cuando estés listo
+const PAYPAL_CLIENT_ID = 'TU_CLIENT_ID_PUBLICO';
+const PAYPAL_CLIENT_SECRET = 'TU_CLIENT_SECRET_SECRETA';
+const PAYPAL_BASE_URL = PAYPAL_MODE === 'sandbox'
+    ? 'https://api-m.sandbox.paypal.com'
+    : 'https://api-m.paypal.com';
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
