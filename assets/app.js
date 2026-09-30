@@ -60,7 +60,162 @@
   function summaryHtml(t){return`<div class="summary"><p><span>Subtotal</span><b>${money .format(t.subtotal)}</b></p>${t.discount?`<p class="discount"><span>Descuento</span><b>−${money .format(t.discount)}</b></p>`:''}<p><span>Envío</span><b>${t.shipping?money .format(t.shipping):'Gratis'}</b></p><p><span>IVA (21 %)</span><b>${money .format(t.tax)}</b></p><p class="total"><span>Total</span><b>${money .format(t.total)}</b></p></div>`;}
   async function validateCoupon(){const input=$('#couponInput');state.coupon=input.value.trim().toUpperCase();if(!state.coupon)return toast('Introduce un código');try{const r=await fetch(`${API}?action=coupon&code=${encodeURIComponent(state.coupon)}&subtotal=${totals().subtotal}`),d=await r.json();if(!r.ok)throw new Error(d.error||'No se pudo validar');if(!d.valid){state.couponPercent=0;toast(d.minimum_amount?`Compra mínima: ${money .format(+d.minimum_amount)}`:'Cupón no válido');}else{state.couponPercent=+d.discount_percent;toast(`${d.discount_percent}% de descuento aplicado`);}renderCart();}catch(e){toast(e.message);}}
 
-  function renderCheckout(){const t=totals();$('#cartBody').innerHTML=`<form id="checkoutForm" class="checkout"><button type="button" class="back" id="backCart">← Volver al carrito</button><p class="eyebrow">CHECKOUT SEGURO DE PRUEBA</p><h2>Datos de entrega</h2><div class="form-grid"><label>Nombre completo<input name="name" required value="${escapeHtml(state.user?.name||'')}"></label><label>Correo electrónico<input type="email" name="email" required value="${escapeHtml(state.user?.email||'')}"></label><label>Teléfono<input name="phone" required minlength="9"></label><label class="wide">Dirección<input name="address" required></label><label>Ciudad<input name="city" required></label><label>Código postal<input name="postal" required minlength="5"></label></div><h3>Entrega</h3><label class="option"><input type="radio" name="shipping" value="standard" checked><span><b>Estándar</b><small>48–72 horas simuladas</small></span><strong>${t.subtotal>=80?'Gratis':'4,95 €'}</strong></label><label class="option"><input type="radio" name="shipping" value="express"><span><b>Exprés</b><small>24 horas simuladas</small></span><strong>8,95 €</strong></label><h3>Pago de demostración</h3><label class="option"><input type="radio" name="payment" value="Tarjeta de prueba" checked><span><b>Tarjeta de prueba</b><small>No introduzcas una tarjeta real</small></span></label><div class="fake-card"><label>Titular<input name="cardName" required value="CLIENTE DE PRUEBA"></label><label>Número de prueba<input value="4242 4242 4242 4242" readonly></label></div>${summaryHtml(t)}<button class="primary full">Confirmar pedido simulado · ${money .format(t.total)}</button></form>`;$('#backCart').addEventListener('click',renderCart);$('#checkoutForm').addEventListener('submit',placeOrder);log('checkout.started');}
+  function renderCheckout(){
+  const t = totals();
+  $('#cartBody').innerHTML = `
+    <form id="checkoutForm" class="checkout">
+      <button type="button" class="back" id="backCart">← Volver al carrito</button>
+      <p class="eyebrow">PASO FINAL · ENTREGA Y FACTURACIÓN</p>
+      <h2>Datos del envío</h2>
+
+      <div class="form-grid">
+        <label>Nombre completo<input name="name" required value="${escapeHtml(state.user?.name||'')}"></label>
+        <label>Correo electrónico<input type="email" name="email" required value="${escapeHtml(state.user?.email||'')}"></label>
+        <label>Teléfono de contacto<input name="phone" required minlength="9" placeholder="600 000 000"></label>
+        <label class="wide">Dirección de entrega<input name="address" required placeholder="Calle, número, piso"></label>
+        <label>Ciudad<input name="city" required placeholder="Murcia"></label>
+        <label>Código postal<input name="postal" required minlength="5" placeholder="30001"></label>
+      </div>
+
+      <h3>Método de entrega</h3>
+      <label class="option"><input type="radio" name="shipping" value="standard" checked><span><b>Estándar</b><small>48–72 horas simuladas</small></span><strong>${t.subtotal>=80?'Gratis':'4,95 €'}</strong></label>
+      <label class="option"><input type="radio" name="shipping" value="express"><span><b>Exprés</b><small>24 horas simuladas</small></span><strong>8,95 €</strong></label>
+
+      ${summaryHtml(t)}
+
+      <!-- Botón que activa la ventana de PayPal simulada -->
+      <button type="submit" id="openPaypalModalBtn" style="
+        background: #ffc439;
+        color: #003087;
+        font-weight: 700;
+        border: none;
+        border-radius: 24px;
+        padding: 15px;
+        width: 100%;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.12);
+      ">
+        <span style="font-style: italic; font-size: 20px; font-weight: 900;">P</span> Pagar con PayPal · ${money.format(t.total)}
+      </button>
+      <small style="display:block; text-align:center; margin-top:8px; color:#647786;">
+        ◈ Pasarela de demostración académica (sin cargos bancarios).
+      </small>
+    </form>
+  `;
+
+  $('#backCart').addEventListener('click', renderCart);
+
+  // Al enviar el formulario, validamos los datos de entrega y abrimos la pasarela PayPal simulada
+  $('#checkoutForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    abrirPasarelaSimuladaPayPal(f, t);
+  });
+}
+
+// Modal que recrea visualmente la pantalla de confirmación de PayPal
+  function abrirPasarelaSimuladaPayPal(formData, totalsData) {
+  openModal(`
+    <div style="font-family: Arial, sans-serif; color: #102a3c; max-width: 420px; margin: 0 auto; text-align: left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #003087; padding-bottom: 12px; margin-bottom: 16px;">
+        <span style="font-size: 22px; font-weight: 900; color: #003087; font-style: italic;">PayPal <small style="font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-style: normal;">SANDBOX DEMO</small></span>
+        <strong style="font-size: 18px; color: #0f172a;">${money.format(totalsData.total)}</strong>
+      </div>
+
+      <p style="margin: 0 0 6px 0; font-size: 13px; color: #647786;">Cuenta conectada:</p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 14px;">
+        <b style="font-size: 14px;">${escapeHtml(formData.get('email'))}</b>
+        <small style="display:block; color: #16a34a; margin-top: 2px;">● Sesión verificada (Simulación académica)</small>
+      </div>
+
+      <p style="margin: 0 0 6px 0; font-size: 13px; color: #647786;">Enviar y facturar a:</p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 14px; font-size: 13px; line-height: 1.4;">
+        <b>${escapeHtml(formData.get('name'))}</b><br>
+        ${escapeHtml(formData.get('address'))}<br>
+        ${escapeHtml(formData.get('postal'))} ${escapeHtml(formData.get('city'))}<br>
+        Tel: ${escapeHtml(formData.get('phone'))}
+      </div>
+
+      <p style="margin: 0 0 6px 0; font-size: 13px; color: #647786;">Forma de pago asociada:</p>
+      <div style="display: flex; align-items: center; justify-content: space-between; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 8px 12px; margin-bottom: 20px;">
+        <span>Saldo PayPal / Tarjeta Demo</span>
+        <span style="font-weight: bold; color: #003087;">•••• 4242</span>
+      </div>
+
+      <button id="btnAutorizarPayPal" style="
+        background: #0070ba;
+        color: white;
+        font-weight: bold;
+        border: none;
+        border-radius: 24px;
+        padding: 14px;
+        width: 100%;
+        font-size: 15px;
+        cursor: pointer;
+      ">
+        Completar compra
+      </button>
+
+      <button type="button" id="btnCancelarPayPal" style="
+        background: transparent;
+        color: #647786;
+        border: none;
+        width: 100%;
+        margin-top: 8px;
+        cursor: pointer;
+        padding: 6px;
+        font-size: 13px;
+      ">
+        Cancelar y volver a Sensoria
+      </button>
+    </div>
+  `);
+
+  $('#btnCancelarPayPal').onclick = closeModal;
+
+  $('#btnAutorizarPayPal').onclick = async () => {
+    const btn = $('#btnAutorizarPayPal');
+    btn.disabled = true;
+    btn.textContent = 'Procesando autorización…';
+
+    try {
+      const d = await post('checkout', {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        address: formData.get('address'),
+        city: formData.get('city'),
+        postal: formData.get('postal'),
+        shipping: formData.get('shipping'),
+        payment: 'PayPal Sandbox (Simulador)',
+        coupon: state.coupon,
+        session_id: state.sessionId,
+        items: cartLines().map(l => ({ id: +l.product.id, quantity: l.quantity }))
+      });
+
+      closeModal();
+      state.cart = {};
+      saveCart();
+      renderSuccess(d.order, {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        address: formData.get('address'),
+        city: formData.get('city'),
+        postal: formData.get('postal')
+      }, d.notifications || []);
+    } catch (err) {
+      toast(err.message);
+      btn.disabled = false;
+      btn.textContent = 'Completar compra';
+    }
+  };
+}
   async function placeOrder(e){e.preventDefault();const f=new FormData(e.currentTarget),button=e.currentTarget.querySelector('button.primary');button.disabled=true;button.textContent='Procesando…';try{const d=await post('checkout',{name:f.get('name'),email:f.get('email'),phone:f.get('phone'),address:f.get('address'),city:f.get('city'),postal:f.get('postal'),shipping:f.get('shipping'),payment:f.get('payment'),coupon:state.coupon,session_id:state.sessionId,items:cartLines().map(l=>({id:+l.product.id,quantity:l.quantity}))});state.cart={};saveCart();renderSuccess(d.order,{name:f.get('name'),email:f.get('email'),address:f.get('address'),city:f.get('city'),postal:f.get('postal')},d.notifications||[]);}catch(err){toast(err.message);button.disabled=false;button.textContent='Intentar de nuevo';}}
   function renderSuccess(order,customer,notifications){const notice=channel=>{const n=notifications.find(x=>x.channel===channel);if(!n)return`${channel==='EMAIL'?'✉':'▣'} Aviso no disponible`;const label=n.delivery_status==='ENVIADO'?'enviado':n.delivery_status==='SIMULADO'?'guardado en modo demostración':'no enviado (revisar configuración)';return`${channel==='EMAIL'?'✉ Correo':'▣ SMS'} ${label}`;};$('#cartBody').innerHTML=`<div class="success"><span>✓</span><h2>Pedido confirmado</h2><p>El pago se ha simulado correctamente.</p><div><small>Número de pedido</small><b>${escapeHtml(order.order_number)}</b></div><strong>${money .format(+order.total)}</strong><ul><li>✓ Pedido creado</li><li>▣ Pago de prueba aceptado</li><li>${escapeHtml(notice('EMAIL'))}</li><li>${escapeHtml(notice('SMS'))}</li></ul><button class="secondary full" id="invoiceBtn">▤ Descargar factura</button><button class="primary full" id="continueBtn">Seguir comprando</button></div>`;$('#invoiceBtn').addEventListener('click',()=>invoice({...order,...customer,items:[]}));$('#continueBtn').addEventListener('click',()=>{closeCart();showView('shop');});}
 
