@@ -46,5 +46,5 @@
   <div id="cartDrawer" class="overlay drawer-overlay" hidden><aside class="drawer" aria-label="Carrito"><header><div><span>TU SELECCIÓN</span><h2>Carrito <b id="drawerCount">0</b></h2></div><button class="drawer-close" aria-label="Cerrar">×</button></header><div id="cartBody" class="drawer-body"></div></aside></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script>window.SENSORIA={api:'api/index.php'};</script>
-  <script src="assets/app.js?v=1.0" defer></script>
+  <script src="assets/app.js?v=9.9" defer></script>
 </body></html>
