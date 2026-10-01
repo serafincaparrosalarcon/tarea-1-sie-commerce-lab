@@ -40,6 +40,9 @@ const PAYPAL_BASE_URL = PAYPAL_MODE === 'sandbox'
     ? 'https://api-m.sandbox.paypal.com'
     : 'https://api-m.paypal.com';
 
+/* Configuración de IA (la clave real esta en DonDominio) */
+const GEMINI_API_KEY = 'GEMINI_API_KEY';
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
