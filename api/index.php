@@ -1,5 +1,12 @@
 <?php
 declare(strict_types=1);
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 require dirname(__DIR__) . '/config.php';
 require dirname(__DIR__) . '/lib/notifications.php';
@@ -18,9 +25,10 @@ try {
 
     if ($action === 'register' && $method === 'POST') {
         $b = json_input(); $name = trim((string)($b['name'] ?? '')); $email = strtolower(trim((string)($b['email'] ?? ''))); $password = (string)($b['password'] ?? '');
-        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) respond(['error'=>'Revisa el nombre, correo y contraseña'], 422);
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) respond(['error'=>'Revisa el nombre, correo y contraseña (mínimo 8 caracteres)'], 422);
         $stmt = db()->prepare('INSERT INTO users(name,email,password_hash) VALUES(?,?,?)');
         $stmt->execute([$name,$email,password_hash($password,PASSWORD_DEFAULT)]);
+        session_regenerate_id(true);
         $_SESSION['user']=['id'=>(int)db()->lastInsertId(),'name'=>$name,'email'=>$email,'role'=>'customer'];
         respond(['user'=>$_SESSION['user']],201);
     }
@@ -28,6 +36,7 @@ try {
     if ($action === 'login' && $method === 'POST') {
         $b=json_input(); $email=strtolower(trim((string)($b['email']??''))); $stmt=db()->prepare('SELECT * FROM users WHERE email=?');$stmt->execute([$email]);$user=$stmt->fetch();
         if(!$user||!password_verify((string)($b['password']??''),$user['password_hash'])) respond(['error'=>'Correo o contraseña incorrectos'],401);
+        session_regenerate_id(true);
         $_SESSION['user']=['id'=>(int)$user['id'],'name'=>$user['name'],'email'=>$user['email'],'role'=>$user['role']]; respond(['user'=>$_SESSION['user']]);
     }
 
