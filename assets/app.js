@@ -105,3 +105,34 @@
   const mailTitle=s=>({PAGO_SIMULADO:'Hemos recibido tu pedido',PREPARACION:'Estamos preparando tu ritual',ENVIADO:'Tu pedido está en camino',ENTREGADO:'Tu pedido ya ha llegado',CANCELADO:'Tu pedido ha sido cancelado'}[s]||'Actualización de tu pedido');
   init();
 })();
+
+// Manejador del asistente de recomendación con IA
+document.getElementById('ai-btn')?.addEventListener('click', async () => {
+    const input = document.getElementById('ai-query');
+    const resultBox = document.getElementById('ai-result');
+    const query = input?.value.trim();
+
+    if (!query) {
+        alert('Por favor, describe qué estás buscando.');
+        return;
+    }
+
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = '<em>Consultando catálogo con la IA...</em>';
+
+    try {
+        const res = await fetch('api/index.php?action=recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+        });
+        const data = await res.json();
+        if (data.recommendation) {
+            resultBox.innerHTML = `<strong>Recomendación personalizada:</strong><br>${data.recommendation.replace(/\n/g, '<br>')}`;
+        } else {
+            resultBox.innerHTML = `<em>${data.error || 'No se pudo generar recomendación.'}</em>`;
+        }
+    } catch (e) {
+        resultBox.innerHTML = '<em>Error de conexión con el servicio.</em>';
+    }
+});
