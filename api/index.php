@@ -72,6 +72,63 @@ try {
         $user=require_login();$b=json_input();$stmt=db()->prepare('SELECT * FROM orders WHERE id=? AND (user_id=? OR customer_email=?)');$stmt->execute([(int)($b['order_id']??0),$user['id'],$user['email']]);$order=$stmt->fetch();if(!$order)respond(['error'=>'Pedido no encontrado'],404);$stmt=db()->prepare('INSERT INTO returns(order_id,reason,details,refund_amount) VALUES(?,?,?,?)');$stmt->execute([$order['id'],trim((string)($b['reason']??'')),trim((string)($b['details']??'')),$order['total']]);respond(['ok'=>true],201);
     }
 
+    if ($action === 'recommend' && $method === 'POST') {
+        $b = json_input();
+        $userPrompt = trim((string)($b['query'] ?? ''));
+
+        if ($userPrompt === '') {
+            respond(['error' => 'Debes indicar qué necesitas o qué estás buscando.'], 422);
+        }
+
+        $products = db()->query('SELECT id, name, category, price, description FROM products WHERE active=1 ORDER BY id')->fetchAll();
+        if (!$products) {
+            respond(['recommendation' => 'No hay productos disponibles actualmente en el catálogo.']);
+        }
+
+        $catalogText = "Catálogo de productos disponibles:\n";
+        foreach ($products as $p) {
+            $catalogText .= "- [ID: {$p['id']}] {$p['name']} ({$p['category']}) - {$p['price']}€: {$p['description']}\n";
+        }
+
+        $systemInstruction = "Eres un asistente de compras de nuestra tienda Sensoria. Recomienda el mejor producto de nuestro catálogo según la necesidad del cliente y explica brevemente por qué. Basa tu respuesta ÚNICAMENTE en los productos del catálogo.";
+
+        $apiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+        if ($apiKey === '' || $apiKey === 'TU_GEMINI_API_KEY') {
+            respond(['recommendation' => 'Modo demostración: configura la clave GEMINI_API_KEY en el servidor para habilitar respuestas en tiempo real.']);
+        }
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey;
+
+        $payload = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $systemInstruction . "\n\n" . $catalogText . "\n\nConsulta del cliente: " . $userPrompt]
+                    ]
+                ]
+            ]
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response) {
+            $resData = json_decode($response, true);
+            $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar recomendación.';
+            respond(['recommendation' => $text]);
+        } else {
+            respond(['error' => 'Error al consultar el servicio de IA.'], 500);
+        }
+    }
+    
     if ($action === 'admin_data' && $method === 'GET') {
         require_admin();$orders=attach_order_data(db()->query('SELECT * FROM orders ORDER BY id DESC LIMIT 100')->fetchAll());$products=db()->query('SELECT * FROM products ORDER BY id')->fetchAll();$coupons=db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();$returns=db()->query('SELECT r.*,o.order_number,o.customer_name FROM returns r JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC')->fetchAll();$notifications=db()->query('SELECT n.*,o.order_number FROM notifications n JOIN orders o ON o.id=n.order_id ORDER BY n.id DESC LIMIT 100')->fetchAll();$events=db()->query('SELECT * FROM events ORDER BY id DESC LIMIT 200')->fetchAll();$notification_config=['email_enabled'=>MAIL_ENABLED,'sms_enabled'=>SMS_ENABLED,'from_email'=>MAIL_ENABLED?SMTP_FROM_EMAIL:null,'sms_sender'=>SMS_ENABLED?TWILIO_FROM_NUMBER:null];respond(compact('orders','products','coupons','returns','notifications','events','notification_config'));
     }
