@@ -16,7 +16,7 @@
     <nav id="mainNav" aria-label="Navegación principal">
       <button class="active" data-view="shop">Tienda</button>
       <button data-view="account">Mis pedidos</button>
-      <button data-view="admin">Gestión</button>
+      <button data-view="admin" data-admin-only hidden>Gestión</button>
     </nav>
     <div class="header-actions"><button id="accountBtn" class="soft">♙ <span>Mi cuenta</span></button><button id="cartBtn" class="cart">⌑ <span>Carrito</span> <b id="cartCount">0</b></button></div>
   </header>
@@ -40,11 +40,11 @@
 
   <main id="adminView" class="view shell workspace"><div class="workspace-head"><div><p class="eyebrow">CENTRO DE OPERACIONES</p><h1>Gestión integral</h1><p>Catálogo, clientes, comunicaciones, informes, devoluciones y promociones.</p></div><button id="refreshAdmin" class="secondary">↻ Actualizar datos</button></div><div id="adminContent"></div></main>
 
-  <footer><div class="shell"><div><span class="brand-mini">≋</span><b>Sensoria</b><p>Instrumentos de bienestar sensorial para adultos.</p></div><div><b>Proyecto académico</b><a href="#catalog">Catálogo</a><button data-view="account">Mis pedidos</button><button data-view="admin">Gestión</button></div><div><b>Transparencia</b><span>Pagos simulados</span><span>Avisos configurables</span><span>Sin datos bancarios reales</span></div></div></footer>
+  <footer><div class="shell"><div><span class="brand-mini">≋</span><b>Sensoria</b><p>Instrumentos de bienestar sensorial para adultos.</p></div><div><b>Proyecto académico</b><a href="#catalog">Catálogo</a><button data-view="account">Mis pedidos</button><button data-view="admin" data-admin-only hidden>Gestión</button></div><div><b>Transparencia</b><span>Pagos simulados</span><span>Avisos configurables</span><span>Sin datos bancarios reales</span></div></div></footer>
 
   <div id="modal" class="overlay" hidden><div class="modal" role="dialog" aria-modal="true"><button class="modal-close" aria-label="Cerrar">×</button><div id="modalBody"></div></div></div>
   <div id="cartDrawer" class="overlay drawer-overlay" hidden><aside class="drawer" aria-label="Carrito"><header><div><span>TU SELECCIÓN</span><h2>Carrito <b id="drawerCount">0</b></h2></div><button class="drawer-close" aria-label="Cerrar">×</button></header><div id="cartBody" class="drawer-body"></div></aside></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script>window.SENSORIA={api:'api/index.php'};</script>
-  <script src="assets/app.js?v=9.9" defer></script>
+  <script src="assets/app.js?v=1.1" defer></script>
 </body></html>
