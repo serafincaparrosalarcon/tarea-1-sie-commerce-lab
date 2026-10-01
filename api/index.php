@@ -125,7 +125,10 @@ try {
             $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar recomendación.';
             respond(['recommendation' => $text]);
         } else {
-            respond(['error' => 'Error al consultar el servicio de IA.'], 500);
+            $curlError = curl_error($ch);
+            respond([
+                'error' => "HTTP $httpCode - " . ($curlError ?: $response ?: 'Sin respuesta')
+            ], 500);
         }
     }
     
