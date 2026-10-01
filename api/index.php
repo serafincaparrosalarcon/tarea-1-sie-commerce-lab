@@ -97,7 +97,7 @@ try {
             respond(['recommendation' => 'Modo demostración: configura la clave GEMINI_API_KEY en el servidor para habilitar respuestas en tiempo real.']);
         }
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey;
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' . $apiKey;
 
         $payload = [
             'contents' => [
