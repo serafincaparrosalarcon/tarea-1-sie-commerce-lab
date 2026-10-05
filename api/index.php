@@ -109,27 +109,42 @@ try {
             ]
         ];
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        // Probamos con 3.8; si está saturado (503), salta a 3.5 o 3.1
+        $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+        $response = false;
+        $httpCode = 0;
+        $lastError = '';
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        foreach ($modelsToTry as $modelName) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key=" . $apiKey;
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode === 200 && $response) {
+                break;
+            }
+
+            $lastError = "HTTP $httpCode - " . ($curlErr ?: $response ?: 'Sin respuesta');
+        }
 
         if ($httpCode === 200 && $response) {
             $resData = json_decode($response, true);
             $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar recomendación.';
             respond(['recommendation' => $text]);
         } else {
-            $curlError = curl_error($ch);
-            respond([
-                'error' => "HTTP $httpCode - " . ($curlError ?: $response ?: 'Sin respuesta')
-            ], 500);
+            respond(['error' => $lastError], 500);
         }
+        
     }
     
     if ($action === 'admin_data' && $method === 'GET') {
