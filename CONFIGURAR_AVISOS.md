@@ -42,3 +42,23 @@ Se intenta enviar un correo y un SMS en estos momentos:
 - cancelado.
 
 Cada intento queda registrado como `ENVIADO`, `SIMULADO` o `ERROR`. Nunca publiques las contraseñas reales ni el Auth Token en GitHub.
+
+## Aviso de nuevos pedidos a ventas
+
+Cada compra registrada también intenta enviar un aviso interno a `ventas@sensoria.onl`,
+además de la confirmación al comprador. El aviso incluye número de pedido, nombre,
+correo, teléfono y total. Se registra como `NUEVO_PEDIDO_VENTAS` en Gestión → Comunicaciones.
+La compra actual sigue siendo simulada: este mensaje no es un justificante de cobro de PayPal.
+
+En el `config.php` del hosting conserva o añade:
+
+```php
+const ORDER_NOTIFICATION_EMAIL = 'ventas@sensoria.onl';
+```
+
+Para recibir mensajes reales debes activar `MAIL_ENABLED` y completar los datos SMTP
+indicados arriba. La dirección destinataria no sustituye a las credenciales del emisor.
+Sube también los archivos actualizados `api/index.php` y `lib/notifications.php` al hosting.
+Si el envío aparece como `SIMULADO`, el correo está desactivado; si aparece como `ERROR`,
+revisa el error registrado. `ENVIADO` significa que el servidor SMTP aceptó el mensaje:
+comprueba también la carpeta de spam del destinatario.

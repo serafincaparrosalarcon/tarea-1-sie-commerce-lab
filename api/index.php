@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require dirname(__DIR__) . '/config.php';
+
 session_set_cookie_params([
     'lifetime' => SESSION_LIFETIME,
     'path' => '/',
@@ -10,7 +12,6 @@ session_set_cookie_params([
 ]);
 session_start();
 
-require dirname(__DIR__) . '/config.php';
 require dirname(__DIR__) . '/lib/notifications.php';
 
 $action = (string)($_GET['action'] ?? '');
@@ -198,13 +199,14 @@ try {
             'created_at' => date('Y-m-d H:i:s'),
         ];
 
+        $pdo->commit();
+
         try {
             $notifications = dispatch_order_notifications($pdo, $order, 'PAGO_SIMULADO');
         } catch (Throwable $notificationError) {
             $notifications = [['channel' => 'SISTEMA', 'recipient' => '', 'delivery_status' => ['status' => 'ERROR', 'provider_id' => null, 'error' => $notificationError->getMessage()]]];
         }
 
-        $pdo->commit();
         respond(['order' => $order, 'notifications' => $notifications], 201);
     }
 
@@ -304,7 +306,7 @@ try {
         $customers = db()->query("SELECT customer_email email,MAX(customer_name) name,COUNT(*) orders,ROUND(SUM(total),2) spend,MAX(created_at) last_order FROM orders GROUP BY customer_email ORDER BY spend DESC LIMIT 30")->fetchAll();
         $notifications = db()->query('SELECT * FROM notifications ORDER BY id DESC LIMIT 50')->fetchAll();
         $coupons = db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();
-        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'notification_config' => ['email_enabled' => true, 'sms_enabled' => false]]);
+        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'notification_config' => ['email_enabled' => MAIL_ENABLED, 'sms_enabled' => SMS_ENABLED]]);
     }
 
     if ($action === 'crm' && $method === 'GET') {
