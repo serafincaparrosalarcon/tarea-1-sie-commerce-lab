@@ -7,6 +7,16 @@ function dispatch_order_notifications(PDO $pdo, array $order, string $template):
     $email = send_smtp_notification((string)$order['customer_email'], $message['subject'], $message['html']);
     save_notification($pdo, $order, 'EMAIL', $template, $message['subject'], $message['text'], $email);
 
+    if ($template === 'PAGO_SIMULADO') {
+        $salesEmail = defined('ORDER_NOTIFICATION_EMAIL')
+            ? (string) ORDER_NOTIFICATION_EMAIL : 'ventas@sensoria.onl';
+        $salesMessage = sales_order_message($order);
+        $salesResult = send_smtp_notification($salesEmail, $salesMessage['subject'], $salesMessage['html']);
+        $salesOrder = $order;
+        $salesOrder['customer_email'] = $salesEmail;
+        save_notification($pdo, $salesOrder, 'EMAIL', 'NUEVO_PEDIDO_VENTAS', $salesMessage['subject'], $salesMessage['text'], $salesResult);
+    }
+
     $phone = normalize_phone((string)($order['phone'] ?? ''));
     $sms = $phone === ''
         ? ['status'=>'ERROR','provider_id'=>null,'error'=>'Teléfono no válido']
@@ -17,6 +27,19 @@ function dispatch_order_notifications(PDO $pdo, array $order, string $template):
         ['channel'=>'EMAIL','recipient'=>(string)$order['customer_email'],'delivery_status'=>$email['status'],'error_message'=>$email['error']],
         ['channel'=>'SMS','recipient'=>$phone ?: (string)($order['phone'] ?? ''),'delivery_status'=>$sms['status'],'error_message'=>$sms['error']],
     ];
+}
+
+/** Aviso al vendedor: el pago actual es de demostración, no un cobro PayPal. */
+function sales_order_message(array $order): array {
+    $subject = 'Nuevo pedido · ' . $order['order_number'];
+    $total = number_format((float)$order['total'], 2, ',', '.') . ' €';
+    $text = "Nuevo pedido {$order['order_number']}. Cliente: {$order['customer_name']}. "
+        . "Correo: {$order['customer_email']}. Teléfono: " . ($order['phone'] ?? '')
+        . ". Total: {$total}. Pago de demostración registrado; no se ha realizado un cobro en PayPal.";
+    $html = '<!doctype html><html lang="es"><body style="font-family:Arial,sans-serif">'
+        . '<h1>Nuevo pedido en Sensoria</h1><p>'
+        . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p></body></html>';
+    return compact('subject', 'text', 'html');
 }
 
 function notification_message(array $order, string $template): array {
@@ -85,7 +108,7 @@ function send_smtp_notification(string $recipient, string $subject, string $html
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . ($_SERVER['SERVER_NAME'] ?? 'sensoria.local') . '>',
         ];
         $data = implode("\r\n", $headers) . "\r\n\r\n" . str_replace("\n.", "\n..", str_replace(["\r\n", "\r"], "\n", $html));
-        fwrite($socket, str_replace("\n", "\r\n", $data) . "\r\n.\r\n");
+        fwrite($socket, str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $data)) . "\r\n.\r\n");
         smtp_expect($socket, [250]);
         smtp_command($socket, 'QUIT', [221]);
         fclose($socket);

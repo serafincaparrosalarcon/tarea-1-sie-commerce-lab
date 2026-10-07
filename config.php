@@ -30,6 +30,9 @@ const SMTP_PASS = 'TU_CONTRASENA_DE_CORREO';
 const SMTP_FROM_EMAIL = 'pedidos@TU_DOMINIO.es';
 const SMTP_FROM_NAME = 'Sensoria';
 
+/* Destinatario del aviso interno de cada nuevo pedido. */
+const ORDER_NOTIFICATION_EMAIL = 'ventas@sensoria.onl';
+
 /* SMS reales mediante Twilio. El número debe estar en formato internacional. */
 const SMS_ENABLED = false;
 const TWILIO_ACCOUNT_SID = 'TU_ACCOUNT_SID';
