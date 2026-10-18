@@ -34,8 +34,8 @@ function invoice_html(array $order, bool $fullDocument = false): string {
         . '<div class="invoice-parties"><div><small>EMISOR FICTICIO</small><b>Sensoria · Proyecto académico</b><span>Calle de la Innovación, 24</span><span>28014 Madrid · España</span><span>pedidos@sensoria.onl</span></div>'
         . '<div><small>CLIENTE</small><b>' . invoice_escape((string)($order['customer_name'] ?? '')) . '</b><span>' . invoice_escape((string)($order['customer_email'] ?? '')) . '</span><span>' . invoice_escape($address) . '</span><span>' . invoice_escape($cityLine) . '</span></div></div>'
         . '<div class="invoice-meta"><span><small>Fecha</small><b>' . invoice_escape($date) . '</b></span><span><small>Pago</small><b>PayPal simulado</b></span><span><small>Estado</small><b>' . invoice_escape((string)($order['status'] ?? 'PAGO_SIMULADO')) . '</b></span></div>'
-        . '<table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Importe</th></tr></thead><tbody>' . $rows . '</tbody></table>'
-        . '<div class="invoice-totals"><span>Subtotal<b>' . invoice_money((float)($order['subtotal'] ?? 0)) . '</b></span><span>Descuento<b>−' . invoice_money((float)($order['discount'] ?? 0)) . '</b></span><span>Envío<b>' . invoice_money((float)($order['shipping'] ?? 0)) . '</b></span><span>IVA (21 %)<b>' . invoice_money((float)($order['tax'] ?? 0)) . '</b></span><span class="grand">Total<b>' . invoice_money((float)($order['total'] ?? 0)) . '</b></span></div>'
+        . '<table><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio final</th><th>Importe</th></tr></thead><tbody>' . $rows . '</tbody></table>'
+        . '<div class="invoice-totals"><span>Productos (IVA incl.)<b>' . invoice_money((float)($order['subtotal'] ?? 0)) . '</b></span><span>Descuento<b>−' . invoice_money((float)($order['discount'] ?? 0)) . '</b></span><span>Envío<b>' . invoice_money((float)($order['shipping'] ?? 0)) . '</b></span><span>IVA incluido (21 %)<b>' . invoice_money((float)($order['tax'] ?? 0)) . '</b></span><span class="grand">Total<b>' . invoice_money((float)($order['total'] ?? 0)) . '</b></span></div>'
         . '<footer class="invoice-footer"><div><b>Gracias por elegir Sensoria</b><span>Tu pausa empieza aquí.</span></div><p>Documento generado exclusivamente como evidencia funcional del prototipo académico Sensoria.</p></footer>'
         . '</section>';
 
@@ -167,10 +167,10 @@ function invoice_pdf(array $order): string {
     $fill($commands, 0.957, 0.976, 0.976);
     $rect($commands, 326, $totalsTop - 118, 231, 118);
     $labels = [
-        ['Subtotal', (float)($order['subtotal'] ?? 0), false],
+        ['Productos (IVA incl.)', (float)($order['subtotal'] ?? 0), false],
         ['Descuento', -(float)($order['discount'] ?? 0), false],
         ['Envio', (float)($order['shipping'] ?? 0), false],
-        ['IVA (21 %)', (float)($order['tax'] ?? 0), false],
+        ['IVA incluido (21 %)', (float)($order['tax'] ?? 0), false],
     ];
     $ty = $totalsTop - 18;
     foreach ($labels as [$label, $amount]) {
