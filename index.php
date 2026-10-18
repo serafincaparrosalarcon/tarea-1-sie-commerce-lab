@@ -108,5 +108,5 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <aside id="cookieBanner" class="cookie-banner" aria-label="Preferencias de cookies" hidden><div><b>Cookies y almacenamiento técnico</b><p>Usamos únicamente datos técnicos para la sesión, el carrito y tu elección. No hay publicidad ni analítica de terceros.</p><button data-view="cookies" class="cookie-link">Ver política</button></div><div class="cookie-actions"><button id="necessaryCookies" class="secondary">Solo necesarias</button><button id="acceptCookies" class="primary">Aceptar todas</button></div></aside>
   <script>window.SENSORIA={api:'api/index.php'};</script>
-  <script src="assets/app.js?v=2.0" defer></script>
+  <script src="assets/app.js?v=2.1" defer></script>
 </body></html>
