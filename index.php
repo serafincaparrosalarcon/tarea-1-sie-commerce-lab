@@ -5,12 +5,27 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Sensoria: instrumentos de bienestar sensorial para adultos.">
   <meta name="theme-color" content="#102a3c">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://www.sensoria.onl/">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:title" content="Sensoria · Bienestar sensorial para adultos">
+  <meta property="og:description" content="Luz, tacto y sonido para crear pausas de calma, concentración y descanso.">
+  <meta property="og:url" content="https://www.sensoria.onl/">
+  <meta property="og:image" content="https://www.sensoria.onl/assets/products/aura-wave.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sensoria · Bienestar sensorial">
+  <meta name="twitter:description" content="Instrumentos sensoriales para crear pausas reales.">
+  <meta name="twitter:image" content="https://www.sensoria.onl/assets/products/aura-wave.jpg">
   <title>Sensoria · Bienestar sensorial</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23244a68'/%3E%3Cpath d='M13 23c7-8 13 8 20 0s13 8 20 0M13 33c7-8 13 8 20 0s13 8 20 0M13 43c7-8 13 8 20 0s13 8 20 0' fill='none' stroke='%23ffc36b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="assets/styles.css?v=1.1">
+  <link rel="stylesheet" href="assets/styles.css?v=2.0">
   <link rel="stylesheet" href="assets/paypal.css?v=1.0">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Sensoria","url":"https://www.sensoria.onl/","description":"Proyecto académico de comercio electrónico dedicado al bienestar sensorial para adultos."}</script>
 </head>
 <body>
+  <a class="skip-link" href="#catalog">Saltar al catálogo</a>
   <div class="academic"><span>◈</span> PROTOTIPO ACADÉMICO · No se realizan pagos, envíos ni reembolsos reales</div>
   <header class="header">
     <button class="brand" data-view="shop"><span>≋</span><b>Sensoria</b></button>
@@ -30,14 +45,13 @@
 
     <section class="sensory shell" aria-label="Categorías sensoriales"><button data-category="Visual"><i>◐</i><span><b>Visual</b><small>Luz y proyección</small></span>→</button><button data-category="Táctil"><i>⌁</i><span><b>Táctil</b><small>Texturas antiestrés</small></span>→</button><button data-category="Sonoro"><i>♫</i><span><b>Sonoro</b><small>Ambientes de calma</small></span>→</button></section>
 
-    <section class="ai-assistant-card shell" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:24px; margin:24px auto;">
-      <h3 style="margin-top:0; color:#102a3c;">🤖 Asistente Inteligente de Compra</h3>
-      <p style="color:#64748b; font-size:14px; margin-bottom:14px;">Cuéntanos qué necesitas y nuestra IA te recomendará el mejor producto de nuestro catálogo.</p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <input type="text" id="ai-query" placeholder="Ej: Busco algo para relajarme y dormir mejor..." style="flex:1; min-width:260px; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; font-size:14px;">
-        <button type="button" id="ai-btn" class="primary" style="padding:10px 20px; cursor:pointer;">Consultar a la IA</button>
+    <section id="advisor" class="advisor shell" aria-labelledby="advisorTitle">
+      <div class="advisor-copy"><span class="advisor-mark" aria-hidden="true">✦</span><p class="eyebrow">ASESOR SENSORIA</p><h2 id="advisorTitle">Encuentra tu pausa ideal</h2><p>Describe cómo quieres sentirte y te recomendaremos una opción del catálogo.</p></div>
+      <div class="advisor-tool">
+        <div class="advisor-chips" aria-label="Consultas rápidas"><button type="button" data-ai-prompt="Quiero dormir mejor y prefiero un estímulo suave">Dormir mejor</button><button type="button" data-ai-prompt="Necesito concentrarme sin distracciones">Concentrarme</button><button type="button" data-ai-prompt="Busco reducir el estrés al final del día">Reducir estrés</button></div>
+        <div class="advisor-search"><label class="sr-only" for="ai-query">Describe lo que necesitas</label><input type="text" id="ai-query" placeholder="Ej.: busco algo suave para desconectar antes de dormir"><button type="button" id="ai-btn" class="primary">Obtener recomendación</button></div>
+        <div id="ai-result" class="advisor-result" role="status" aria-live="polite" hidden></div>
       </div>
-      <div id="ai-result" style="display:none; margin-top:16px; padding:16px; background:#ffffff; border-radius:8px; border-left:4px solid #102a3c; font-size:14px; line-height:1.6; color:#1e293b;"></div>
     </section>
     
     <section id="catalog" class="catalog shell"><div class="section-head"><div><p class="eyebrow">COLECCIÓN PERMANENTE</p><h2>Instrumentos para cada sentido</h2><p>Seleccionados para acompañar concentración, descanso y regulación sensorial.</p></div><div class="catalog-tools"><label class="search">⌕<input id="searchInput" placeholder="Buscar producto" aria-label="Buscar producto"></label><select id="sortSelect" aria-label="Ordenar productos"><option value="featured">Destacados</option><option value="priceAsc">Precio: menor a mayor</option><option value="priceDesc">Precio: mayor a menor</option><option value="stock">Mayor disponibilidad</option></select></div></div><div id="categoryTabs" class="tabs"><button class="active" data-category="Todas">Todas</button><button data-category="Visual">Visual</button><button data-category="Táctil">Táctil</button><button data-category="Sonoro">Sonoro</button></div><div id="productGrid" class="product-grid" aria-live="polite"></div></section>
@@ -45,6 +59,10 @@
     <section class="finder shell"><div><p class="eyebrow">ENCUENTRA TU RITUAL</p><h2>¿Qué necesitas ahora?</h2><p>Elige un momento y descubre una selección pensada para acompañarlo.</p></div><div><button data-ritual="foco"><b>01</b><h3>Recuperar el foco</h3><p>Objetos silenciosos para manos inquietas y pausas breves.</p>→</button><button data-ritual="calma"><b>02</b><h3>Bajar el ritmo</h3><p>Luz indirecta y movimiento lento para cerrar el día.</p>→</button><button data-ritual="dormir"><b>03</b><h3>Dormir mejor</h3><p>Sonidos continuos que suavizan el ambiente nocturno.</p>→</button></div></section>
 
     <section class="service shell"><article><i>♢</i><h3>Selección experta</h3><p>Productos organizados por estímulo, intensidad y momento de uso.</p></article><article><i>◎</i><h3>Compra tranquila</h3><p>Checkout académico seguro, claro y sin cobros reales.</p></article><article><i>↻</i><h3>Devolución sencilla</h3><p>Solicitud y seguimiento dentro del área personal.</p></article><article><i>✉</i><h3>Acompañamiento</h3><p>Correo y SMS en cada fase del pedido.</p></article></section>
+
+    <section class="reviews shell" aria-labelledby="reviewsTitle"><div class="section-head"><div><p class="eyebrow">EXPERIENCIAS DE DEMOSTRACIÓN</p><h2 id="reviewsTitle">Pequeños rituales, grandes pausas</h2><p>Valoraciones ficticias creadas para mostrar la experiencia completa del prototipo.</p></div><div class="review-score"><b>4,8</b><span aria-label="4,8 de 5 estrellas">★★★★★</span><small>126 valoraciones demo</small></div></div><div class="review-grid"><article><span>★★★★★</span><p>“La luz es suave y el diseño queda bien incluso cuando no está en uso.”</p><footer><b>Laura M.</b><small>Aura Wave · Compra demo verificada</small></footer></article><article><span>★★★★★</span><p>“El asesor acertó con una opción discreta para utilizar mientras trabajo.”</p><footer><b>Diego R.</b><small>Pebble Calm · Compra demo verificada</small></footer></article><article><span>★★★★☆</span><p>“El seguimiento del pedido y la factura hacen que la experiencia resulte muy completa.”</p><footer><b>Marta G.</b><small>Cloud Weight · Compra demo verificada</small></footer></article></div></section>
+
+    <section class="final-cta shell"><div><p class="eyebrow">TU MOMENTO EMPIEZA AQUÍ</p><h2>Diseña una pausa que encaje contigo.</h2><p>Explora la colección o deja que el Asesor Sensoria encuentre una recomendación.</p></div><div><button class="primary" data-scroll="catalog">Ver colección</button><button class="secondary" data-scroll="advisor">Usar el asesor</button></div></section>
   </main>
 
   <main id="accountView" class="view shell workspace"><div class="workspace-head"><div><p class="eyebrow">ESPACIO PERSONAL</p><h1>Mis pedidos</h1><p>Historial, facturas, seguimiento y devoluciones.</p></div><button class="primary" data-view="shop">Volver a la tienda</button></div><div id="accountContent"></div></main>
@@ -90,5 +108,5 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <aside id="cookieBanner" class="cookie-banner" aria-label="Preferencias de cookies" hidden><div><b>Cookies y almacenamiento técnico</b><p>Usamos únicamente datos técnicos para la sesión, el carrito y tu elección. No hay publicidad ni analítica de terceros.</p><button data-view="cookies" class="cookie-link">Ver política</button></div><div class="cookie-actions"><button id="necessaryCookies" class="secondary">Solo necesarias</button><button id="acceptCookies" class="primary">Aceptar todas</button></div></aside>
   <script>window.SENSORIA={api:'api/index.php'};</script>
-  <script src="assets/app.js?v=1.4" defer></script>
+  <script src="assets/app.js?v=2.0" defer></script>
 </body></html>
