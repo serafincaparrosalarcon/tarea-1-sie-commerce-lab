@@ -1,10 +1,15 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/invoice.php';
+
 /** Envía correo y SMS (o los registra como simulados) sin interrumpir el pedido. */
 function dispatch_order_notifications(PDO $pdo, array $order, string $template): array {
     $message = notification_message($order, $template);
-    $email = send_smtp_notification((string)$order['customer_email'], $message['subject'], $message['html']);
+    $attachments = $template === 'PAGO_SIMULADO'
+        ? [['name' => 'Factura-' . $order['order_number'] . '.pdf', 'type' => 'application/pdf', 'content' => invoice_pdf($order)]]
+        : [];
+    $email = send_smtp_notification((string)$order['customer_email'], $message['subject'], $message['html'], $attachments);
     save_notification($pdo, $order, 'EMAIL', $template, $message['subject'], $message['text'], $email);
 
     $phone = normalize_phone((string)($order['phone'] ?? ''));
@@ -39,14 +44,19 @@ function notification_message(array $order, string $template): array {
     $name = htmlspecialchars((string)$order['customer_name'], ENT_QUOTES, 'UTF-8');
     $number = htmlspecialchars((string)$order['order_number'], ENT_QUOTES, 'UTF-8');
     $total = number_format((float)$order['total'], 2, ',', '.') . ' €';
+    $invoiceBlock = $template === 'PAGO_SIMULADO' ? email_invoice_block($order) : '';
+    $attachmentNote = $template === 'PAGO_SIMULADO'
+        ? '<p style="color:#647786;font-size:13px">Adjuntamos tu factura demostrativa en PDF. No se ha realizado ningún cobro real.</p>'
+        : '';
     $html = '<!doctype html><html lang="es"><body style="margin:0;background:#edf3f5;font-family:Arial,sans-serif;color:#102a3c">'
         . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px">'
         . '<table role="presentation" width="620" style="max-width:100%;background:#fff;border-radius:20px;overflow:hidden">'
         . '<tr><td style="background:#102a3c;color:#fff;padding:28px 34px"><b style="font-size:24px;letter-spacing:2px">SENSORIA</b><br><span style="color:#bdd0db">Tu pausa empieza aquí</span></td></tr>'
         . '<tr><td style="padding:34px"><p style="color:#315f78;font-weight:bold">PEDIDO ' . $number . '</p><h1 style="font-size:28px">' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</h1>'
         . '<p>Hola ' . $name . ',</p><p style="font-size:17px;line-height:1.6">' . htmlspecialchars($detail, ENT_QUOTES, 'UTF-8') . '</p>'
+        . $invoiceBlock
         . '<div style="background:#fff3df;border-radius:14px;padding:18px;margin:24px 0"><span>Total del pedido</span><b style="float:right;font-size:20px">' . $total . '</b></div>'
-        . '<p style="color:#647786;font-size:13px">Este mensaje se ha generado automáticamente desde la tienda académica Sensoria.</p></td></tr></table>'
+        . $attachmentNote . '<p style="color:#647786;font-size:13px">Este mensaje se ha generado automáticamente desde la tienda académica Sensoria.</p></td></tr></table>'
         . '</td></tr></table></body></html>';
     $text = "Hola {$order['customer_name']}. {$detail} Pedido {$order['order_number']}. Total: {$total}.";
     $sms = "Sensoria: {$detail} Pedido {$order['order_number']}.";
@@ -54,7 +64,19 @@ function notification_message(array $order, string $template): array {
     return compact('subject', 'html', 'text', 'sms');
 }
 
-function send_smtp_notification(string $recipient, string $subject, string $html): array {
+function email_invoice_block(array $order): string {
+    $rows = '';
+    foreach (($order['items'] ?? []) as $item) {
+        $qty = max(1, (int)($item['quantity'] ?? 1));
+        $unit = (float)($item['unit_price'] ?? 0);
+        $rows .= '<tr><td style="padding:9px;border-bottom:1px solid #dce5ea">' . htmlspecialchars((string)($item['product_name'] ?? 'Producto'), ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:9px;text-align:center;border-bottom:1px solid #dce5ea">' . $qty . '</td>'
+            . '<td style="padding:9px;text-align:right;border-bottom:1px solid #dce5ea">' . number_format($qty * $unit, 2, ',', '.') . ' €</td></tr>';
+    }
+    return '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:22px 0"><tr style="background:#102a3c;color:#fff"><th align="left" style="padding:9px">Producto</th><th style="padding:9px">Ud.</th><th align="right" style="padding:9px">Importe</th></tr>' . $rows . '</table>';
+}
+
+function send_smtp_notification(string $recipient, string $subject, string $html, array $attachments = []): array {
     if (!MAIL_ENABLED) return ['status'=>'SIMULADO','provider_id'=>null,'error'=>null];
     if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) return ['status'=>'ERROR','provider_id'=>null,'error'=>'Correo no válido'];
     $socket = null;
@@ -77,14 +99,29 @@ function send_smtp_notification(string $recipient, string $subject, string $html
         $headers = [
             'Date: ' . date(DATE_RFC2822),
             'From: ' . SMTP_FROM_NAME . ' <' . SMTP_FROM_EMAIL . '>',
+            'Reply-To: ' . SMTP_FROM_EMAIL,
             'To: <' . $recipient . '>',
             'Subject: ' . $encodedSubject,
             'MIME-Version: 1.0',
-            'Content-Type: text/html; charset=UTF-8',
-            'Content-Transfer-Encoding: 8bit',
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . ($_SERVER['SERVER_NAME'] ?? 'sensoria.local') . '>',
         ];
-        $data = implode("\r\n", $headers) . "\r\n\r\n" . str_replace("\n.", "\n..", str_replace(["\r\n", "\r"], "\n", $html));
+        if ($attachments) {
+            $boundary = 'sensoria_' . bin2hex(random_bytes(12));
+            $headers[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
+            $body = '--' . $boundary . "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" . $html . "\r\n";
+            foreach ($attachments as $attachment) {
+                $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($attachment['name'] ?? 'archivo.bin'));
+                $body .= '--' . $boundary . "\r\nContent-Type: " . ($attachment['type'] ?? 'application/octet-stream') . '; name="' . $filename . '"'
+                    . "\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"" . $filename . "\"\r\n\r\n"
+                    . chunk_split(base64_encode((string)($attachment['content'] ?? ''))) . "\r\n";
+            }
+            $body .= '--' . $boundary . "--\r\n";
+        } else {
+            $headers[] = 'Content-Type: text/html; charset=UTF-8';
+            $headers[] = 'Content-Transfer-Encoding: 8bit';
+            $body = $html;
+        }
+        $data = implode("\r\n", $headers) . "\r\n\r\n" . str_replace("\n.", "\n..", str_replace(["\r\n", "\r"], "\n", $body));
         fwrite($socket, str_replace("\n", "\r\n", $data) . "\r\n.\r\n");
         smtp_expect($socket, [250]);
         smtp_command($socket, 'QUIT', [221]);
