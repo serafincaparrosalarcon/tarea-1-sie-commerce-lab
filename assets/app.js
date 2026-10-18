@@ -59,7 +59,7 @@
     '`': '&#96;',
   }[c]));
 
-  const request = async (action, options = {}) => {
+  const request = async (action, options = {}, retryingAfterCsrfRefresh = false) => {
     const { params = {}, headers: optionHeaders = {}, ...fetchOptions } = options;
     const headers = {
       'Content-Type': 'application/json',
@@ -73,6 +73,11 @@
       ...fetchOptions,
     });
     const data = await response.json().catch(() => ({}));
+    if (response.status === 419 && data.code === 'csrf_expired' && data.csrf && !retryingAfterCsrfRefresh) {
+      state.csrfToken = data.csrf;
+      window.SENSORIA.csrf = data.csrf;
+      return request(action, options, true);
+    }
     if (!response.ok) {
       throw new Error(data.error || 'Error de la solicitud');
     }
@@ -92,11 +97,12 @@
 
   async function init() {
     try {
-      const [p, s] = await Promise.all([request('products'), request('session')]);
-      state.products = p.products || [];
+      const s = await request('session');
       state.user = s.user;
       state.csrfToken = s.csrf || '';
       window.SENSORIA.csrf = state.csrfToken;
+      const p = await request('products');
+      state.products = p.products || [];
       renderProducts();
     } catch {
       state.products = fallbackProducts;
