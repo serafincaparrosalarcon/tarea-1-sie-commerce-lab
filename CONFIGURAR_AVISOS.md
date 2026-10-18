@@ -15,7 +15,7 @@ const SMTP_FROM_EMAIL = 'pedidos@tu-dominio.es';
 const SMTP_FROM_NAME = 'Sensoria';
 ```
 
-La aplicación usa conexión autenticada, STARTTLS y una plantilla HTML responsive. Si falla, el pedido se conserva y el error aparece en **Gestión → Comunicaciones**.
+La aplicación usa conexión autenticada, STARTTLS y una plantilla HTML responsive. En la confirmación incluye el detalle de la compra y adjunta una factura demostrativa en PDF. Si falla, el pedido se conserva y el error aparece en **Gestión → Comunicaciones**.
 
 ## SMS mediante Twilio
 
