@@ -504,6 +504,15 @@ try {
     }
     $code = (int)$e->getCode() === 23000 ? 409 : 500;
     respond(['error' => $code === 409 ? 'El registro ya existe' : 'Error de base de datos. Revisa config.php e install.php'], $code);
+} catch (RuntimeException $e) {
+    if ($e->getMessage() === 'Token CSRF inválido.') {
+        respond([
+            'error' => 'La sesión ha caducado. Estamos renovando la conexión segura.',
+            'code' => 'csrf_expired',
+            'csrf' => csrf_token(),
+        ], 419);
+    }
+    respond(['error' => $e->getMessage()], 500);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
