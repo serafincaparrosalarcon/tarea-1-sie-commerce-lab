@@ -1,6 +1,10 @@
 <?php
 
 declare(strict_types=1);
+
+require dirname(__DIR__) . '/config.php';
+require dirname(__DIR__) . '/lib/notifications.php';
+
 session_set_cookie_params([
     'lifetime' => SESSION_LIFETIME,
     'path' => '/',
@@ -9,9 +13,6 @@ session_set_cookie_params([
     'samesite' => SESSION_SAMESITE,
 ]);
 session_start();
-
-require dirname(__DIR__) . '/config.php';
-require dirname(__DIR__) . '/lib/notifications.php';
 
 $action = (string)($_GET['action'] ?? '');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -25,6 +26,23 @@ try {
 
     if ($action === 'session' && $method === 'GET') {
         respond(['user' => $_SESSION['user'] ?? null, 'csrf' => csrf_token()]);
+    }
+
+    if ($action === 'invoice' && $method === 'GET') {
+        $user = require_login();
+        $stmt = db()->prepare('SELECT * FROM orders WHERE id=? AND (user_id=? OR customer_email=?)');
+        $stmt->execute([(int)($_GET['order_id'] ?? 0), $user['id'], $user['email']]);
+        $order = $stmt->fetch();
+        if (!$order) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            exit('Factura no encontrada');
+        }
+        $order = attach_order_data([$order])[0];
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: private, no-store');
+        echo invoice_html($order, true);
+        exit;
     }
 
     if ($action === 'register' && $method === 'POST') {
@@ -92,9 +110,13 @@ try {
         $address = trim((string)($b['address'] ?? ''));
         $city = trim((string)($b['city'] ?? ''));
         $postalCode = trim((string)($b['postal_code'] ?? ''));
+        $paymentMethod = strtoupper(trim((string)($b['payment_method'] ?? 'PAYPAL_SIMULADO')));
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !is_array($items) || count($items) === 0 || $name === '' || $phone === '' || $address === '' || $city === '' || $postalCode === '') {
             respond(['error' => 'Datos de compra incompletos'], 422);
+        }
+        if ($paymentMethod !== 'PAYPAL_SIMULADO') {
+            respond(['error' => 'Método de pago no válido'], 422);
         }
 
         $pdo = db();
@@ -156,7 +178,7 @@ try {
             $tax,
             $total,
             $coupon !== '' ? $coupon : null,
-            'PAGO_SIMULADO',
+            $paymentMethod,
         ]);
         $orderId = (int)$pdo->lastInsertId();
 
@@ -178,7 +200,7 @@ try {
             'order.created',
             (string)($b['session_id'] ?? 'WEB'),
             $orderId,
-            json_encode(['total' => $total, 'coupon' => $coupon]),
+            json_encode(['total' => $total, 'coupon' => $coupon, 'payment_method' => $paymentMethod]),
         ]);
 
         $order = [
@@ -187,6 +209,9 @@ try {
             'customer_name' => $name,
             'customer_email' => $email,
             'phone' => $phone,
+            'address' => $address,
+            'city' => $city,
+            'postal_code' => $postalCode,
             'subtotal' => $subtotal,
             'discount' => $discount,
             'shipping' => $shipping,
@@ -194,14 +219,27 @@ try {
             'total' => $total,
             'coupon_code' => $coupon !== '' ? $coupon : null,
             'status' => 'PAGO_SIMULADO',
-            'payment_method' => 'PAGO_SIMULADO',
+            'payment_method' => $paymentMethod,
             'created_at' => date('Y-m-d H:i:s'),
+            'items' => array_map(static fn (array $line): array => [
+                'product_id' => $line['id'],
+                'product_name' => $products[$line['id']]['name'],
+                'quantity' => $line['qty'],
+                'unit_price' => $line['unit'],
+            ], $lines),
         ];
+
+        $pdo->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
+            'payment.simulated',
+            (string)($b['session_id'] ?? 'WEB'),
+            $orderId,
+            json_encode(['amount' => $total, 'currency' => 'EUR', 'method' => $paymentMethod]),
+        ]);
 
         try {
             $notifications = dispatch_order_notifications($pdo, $order, 'PAGO_SIMULADO');
         } catch (Throwable $notificationError) {
-            $notifications = [['channel' => 'SISTEMA', 'recipient' => '', 'delivery_status' => ['status' => 'ERROR', 'provider_id' => null, 'error' => $notificationError->getMessage()]]];
+            $notifications = [['channel' => 'SISTEMA', 'recipient' => '', 'delivery_status' => 'ERROR', 'error_message' => $notificationError->getMessage()]];
         }
 
         $pdo->commit();
@@ -212,7 +250,7 @@ try {
         $user = require_login();
         $stmt = db()->prepare('SELECT * FROM orders WHERE user_id=? OR customer_email=? ORDER BY id DESC');
         $stmt->execute([$user['id'], $user['email']]);
-        respond(['orders' => $stmt->fetchAll()]);
+        respond(['orders' => attach_order_data($stmt->fetchAll())]);
     }
 
     if ($action === 'return_request' && $method === 'POST') {
@@ -223,9 +261,52 @@ try {
         $stmt->execute([(int)($b['order_id'] ?? 0), $user['id'], $user['email']]);
         $order = $stmt->fetch();
         if (!$order) respond(['error' => 'Pedido no encontrado'], 404);
+        $reason = trim((string)($b['reason'] ?? ''));
+        $details = trim((string)($b['details'] ?? ''));
+        if ($reason === '' || $details === '' || strlen($details) > 3000) respond(['error' => 'Indica el motivo y una explicación breve'], 422);
         $stmt = db()->prepare('INSERT INTO returns(order_id,reason,details,status) VALUES(?,?,?,"SOLICITADA")');
-        $stmt->execute([(int)$order['id'], trim((string)($b['reason'] ?? '')), trim((string)($b['details'] ?? ''))]);
+        $stmt->execute([(int)$order['id'], $reason, $details]);
+        db()->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
+            'support.requested',
+            (string)($b['session_id'] ?? 'WEB'),
+            (int)$order['id'],
+            json_encode(['kind' => 'return', 'reason' => $reason]),
+        ]);
+        db()->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
+            'return.requested',
+            (string)($b['session_id'] ?? 'WEB'),
+            (int)$order['id'],
+            json_encode(['reason' => $reason]),
+        ]);
         respond(['ok' => true], 201);
+    }
+
+    if ($action === 'support' && $method === 'POST') {
+        $b = json_input();
+        require_csrf($b);
+        $name = trim((string)($b['name'] ?? ''));
+        $email = strtolower(trim((string)($b['email'] ?? '')));
+        $kind = trim((string)($b['kind'] ?? 'Consulta'));
+        $orderNumber = trim((string)($b['order_number'] ?? ''));
+        $message = trim((string)($b['message'] ?? ''));
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $message === '' || strlen($message) > 4500) {
+            respond(['error' => 'Revisa el nombre, correo y mensaje'], 422);
+        }
+        $orderId = null;
+        if ($orderNumber !== '') {
+            $stmt = db()->prepare('SELECT id FROM orders WHERE order_number=? AND customer_email=?');
+            $stmt->execute([$orderNumber, $email]);
+            $found = $stmt->fetch();
+            $orderId = $found ? (int)$found['id'] : null;
+        }
+        $sessionId = substr(preg_replace('/[^A-Za-z0-9_-]/', '', (string)($b['session_id'] ?? '')), 0, 80) ?: 'WEB';
+        db()->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
+            'support.requested',
+            $sessionId,
+            $orderId,
+            json_encode(['name' => $name, 'email' => $email, 'kind' => $kind, 'order_number' => $orderNumber, 'message' => $message], JSON_UNESCAPED_UNICODE),
+        ]);
+        respond(['ok' => true, 'reference' => 'SOP-' . date('Ymd-His')], 201);
     }
 
     if ($action === 'recommend' && $method === 'POST') {
@@ -304,7 +385,9 @@ try {
         $customers = db()->query("SELECT customer_email email,MAX(customer_name) name,COUNT(*) orders,ROUND(SUM(total),2) spend,MAX(created_at) last_order FROM orders GROUP BY customer_email ORDER BY spend DESC LIMIT 30")->fetchAll();
         $notifications = db()->query('SELECT * FROM notifications ORDER BY id DESC LIMIT 50')->fetchAll();
         $coupons = db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();
-        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'notification_config' => ['email_enabled' => true, 'sms_enabled' => false]]);
+        $events = db()->query('SELECT * FROM events ORDER BY id DESC LIMIT 80')->fetchAll();
+        $returns = db()->query('SELECT r.*,o.order_number,o.customer_name,o.customer_email,o.total order_total FROM returns r JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC LIMIT 50')->fetchAll();
+        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'events' => $events, 'returns' => $returns, 'notification_config' => ['email_enabled' => MAIL_ENABLED, 'sms_enabled' => SMS_ENABLED]]);
     }
 
     if ($action === 'crm' && $method === 'GET') {
@@ -322,7 +405,19 @@ try {
         if (!in_array($status, $valid, true)) respond(['error' => 'Estado no válido'], 422);
         $stmt = db()->prepare('UPDATE orders SET status=? WHERE id=?');
         $stmt->execute([$status, (int)($b['order_id'] ?? 0)]);
-        respond(['ok' => true]);
+        $orderStmt = db()->prepare('SELECT * FROM orders WHERE id=?');
+        $orderStmt->execute([(int)($b['order_id'] ?? 0)]);
+        $order = $orderStmt->fetch();
+        $notifications = [];
+        if ($order) {
+            $order = attach_order_data([$order])[0];
+            try {
+                $notifications = dispatch_order_notifications(db(), $order, $status);
+            } catch (Throwable $notificationError) {
+                $notifications = [['channel' => 'SISTEMA', 'delivery_status' => 'ERROR', 'error_message' => $notificationError->getMessage()]];
+            }
+        }
+        respond(['ok' => true, 'notifications' => $notifications]);
     }
 
     if ($action === 'product_save' && $method === 'POST') {
@@ -389,7 +484,7 @@ try {
     if ($action === 'event' && $method === 'POST') {
         $b = json_input();
         require_csrf($b);
-        $allowed = ['product.viewed', 'cart.added', 'cart.removed', 'order.created', 'checkout.started', 'return.requested'];
+        $allowed = ['product.viewed', 'cart.item_added', 'cart.item_removed', 'cart.added', 'cart.removed', 'order.created', 'checkout.started', 'payment.simulated', 'support.requested', 'return.requested'];
         $type = trim((string)($b['type'] ?? ''));
         if (!in_array($type, $allowed, true)) {
             respond(['error' => 'Tipo de evento no permitido'], 422);
