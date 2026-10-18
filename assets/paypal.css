@@ -1,0 +1,101 @@
+.payment-option {
+  border: 2px solid #0070ba;
+  border-radius: 13px;
+  padding: 15px 16px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f7fbff;
+}
+
+.payment-option input { accent-color: #0070ba; }
+.payment-option > span { display: flex; flex: 1; flex-direction: column; }
+.payment-option small { color: var(--muted); }
+.payment-option > strong { color: #003087; font-size: 1.15rem; font-style: italic; }
+
+.paypal-button,
+.paypal-confirm {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: #ffc439;
+  color: #111;
+  padding: 14px 18px;
+  font-weight: 900;
+}
+
+.paypal-button:hover,
+.paypal-confirm:hover { background: #f2ba36; }
+
+.paypal-gateway {
+  padding: 45px;
+  width: min(520px, 100%);
+  margin: auto;
+}
+
+.paypal-brand {
+  display: flex;
+  align-items: baseline;
+  color: #003087;
+  font-size: 2rem;
+  font-style: italic;
+}
+
+.paypal-brand strong { color: #0070ba; }
+.paypal-brand span {
+  margin-left: auto;
+  color: #687987;
+  font-size: .62rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.paypal-gateway h2 { font-size: 2rem; margin: 28px 0 5px; }
+.paypal-gateway > p { color: var(--muted); }
+.paypal-summary {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.paypal-summary > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.paypal-summary > span:last-child { border-bottom: 0; }
+.paypal-summary small { color: var(--muted); }
+.paypal-summary .paypal-total { align-items: center; background: #f6f8f9; font-weight: 900; }
+.paypal-total b { font-size: 1.35rem; }
+.paypal-notice {
+  display: flex;
+  flex-direction: column;
+  padding: 13px 15px;
+  border-radius: 11px;
+  background: #fff6d8;
+  margin-bottom: 18px;
+  font-size: .82rem;
+}
+
+.paypal-notice span { color: #66572d; }
+.paypal-cancel {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: #456577;
+  padding: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .paypal-gateway { padding: 36px 20px; }
+  .paypal-brand { font-size: 1.7rem; }
+  .paypal-brand span { font-size: .52rem; }
+  .paypal-summary > span { flex-direction: column; gap: 3px; }
+}
