@@ -8,6 +8,9 @@ Tienda académica de instrumentos de bienestar sensorial. Esta edición está pr
 - Carrito, cupones, checkout y pago completamente simulado.
 - Registro e inicio de sesión de clientes.
 - Área personal con pedidos, seguimiento, factura imprimible y devoluciones.
+- Confirmación por correo con resumen del pedido y factura demostrativa adjunta en PDF.
+- Páginas de quiénes somos, contacto, devoluciones, privacidad, cookies y aviso legal.
+- Formulario de soporte persistente que genera el evento `support.requested`.
 - Gestión de productos, stock, pedidos y estados.
 - CRM con segmentación automática de clientes.
 - Correos HTML y SMS automáticos en la confirmación y en cada cambio de estado.
@@ -57,9 +60,14 @@ install.php           Instalador inicial
 database.sql          Estructura y catálogo base
 api/index.php         Operaciones de tienda y administración
 lib/notifications.php Envío SMTP, SMS y plantillas de avisos
+lib/invoice.php       Factura HTML y PDF demostrativa
 assets/styles.css     Diseño responsive
 assets/app.js         Interacciones de la aplicación
 assets/products/      Fotografías optimizadas del catálogo
 ```
 
 Si instalaste una versión anterior, ejecuta una sola vez `migration_002_notifications.sql` desde phpMyAdmin antes de probar los nuevos avisos.
+
+## Eventos principales
+
+El sistema registra `product.viewed`, `cart.item_added`, `cart.item_removed`, `checkout.started`, `order.created`, `payment.simulated`, `support.requested` y `return.requested`. Se consultan desde **Gestión → Eventos** y quedan disponibles en la tabla `events` para su consumo por otros sistemas.
