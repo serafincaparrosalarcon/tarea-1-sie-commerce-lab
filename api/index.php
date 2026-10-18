@@ -158,8 +158,9 @@ try {
 
         $discount = round($subtotal * $percent / 100, 2);
         $shipping = ($b['shipping'] ?? 'standard') === 'express' ? 8.95 : ($subtotal >= 80 ? 0 : 4.95);
-        $tax = round(($subtotal - $discount + $shipping) * 0.21, 2);
-        $total = round($subtotal - $discount + $shipping + $tax, 2);
+        // Los precios del catálogo son precios finales para consumidor, con IVA incluido.
+        $total = round($subtotal - $discount + $shipping, 2);
+        $tax = round($total - ($total / 1.21), 2);
 
         $orderNumber = 'SEN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
         $stmt = $pdo->prepare('INSERT INTO orders(order_number,user_id,customer_name,customer_email,phone,address,city,postal_code,subtotal,discount,shipping,tax,total,coupon_code,payment_method) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
