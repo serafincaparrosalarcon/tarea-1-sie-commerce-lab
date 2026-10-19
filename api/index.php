@@ -333,7 +333,7 @@ try {
 
         $apiKey = defined('GEMINI_API_KEY') ? (string) GEMINI_API_KEY : '';
         if ($apiKey === '' || $apiKey === 'TU_GEMINI_API_KEY') {
-            respond(['recommendation' => 'Modo demostración: configura la clave GEMINI_API_KEY en el servidor para habilitar respuestas en tiempo real.']);
+            respond(smart_catalog_recommendation($products, $userPrompt));
         }
 
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' . $apiKey;
@@ -343,7 +343,7 @@ try {
             ]],
         ];
 
-        $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+        $modelsToTry = ['gemini-2.5-flash'];
         $response = false;
         $httpCode = 0;
         $lastError = '';
@@ -355,8 +355,8 @@ try {
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -376,7 +376,7 @@ try {
             respond(['recommendation' => $text]);
         }
 
-        respond(['error' => $lastError], 500);
+        respond(smart_catalog_recommendation($products, $userPrompt));
     }
 
     if ($action === 'admin_data' && $method === 'GET') {
@@ -518,6 +518,125 @@ try {
         $pdo->rollBack();
     }
     respond(['error' => $e->getMessage()], 500);
+}
+
+function normalize_recommendation_text(string $value): string {
+    return strtolower(strtr($value, [
+        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+        'ü' => 'u', 'ñ' => 'n', 'Á' => 'a', 'É' => 'e', 'Í' => 'i',
+        'Ó' => 'o', 'Ú' => 'u', 'Ü' => 'u', 'Ñ' => 'n',
+    ]));
+}
+
+function smart_catalog_recommendation(array $products, string $prompt): array {
+    $query = normalize_recommendation_text($prompt);
+    $tokens = array_values(array_filter(
+        preg_split('/[^a-z0-9]+/', $query) ?: [],
+        static fn (string $token): bool => strlen($token) >= 4
+    ));
+    $rules = [
+        [
+            'terms' => ['dormir', 'sueno', 'noche', 'descanso', 'insomnio'],
+            'category' => 'Sonoro',
+            'hints' => ['nocturno', 'ruido', 'lluvia', 'oleaje', 'ambiental'],
+            'reason' => 'Su estímulo continuo ayuda a crear una transición suave hacia el descanso.',
+        ],
+        [
+            'terms' => ['concentrar', 'concentracion', 'foco', 'estudiar', 'trabajar', 'distracciones'],
+            'category' => 'Táctil',
+            'hints' => ['mano', 'presion', 'silencioso', 'pausa', 'antiestrés'],
+            'reason' => 'Ofrece una vía discreta para mantener las manos ocupadas y recuperar el foco.',
+        ],
+        [
+            'terms' => ['estres', 'ansiedad', 'calma', 'relajar', 'relajacion', 'desconectar'],
+            'category' => 'Visual',
+            'hints' => ['suave', 'calma', 'respiracion', 'luz', 'movimiento'],
+            'reason' => 'Su estímulo gradual favorece una pausa visual y un ambiente de calma.',
+        ],
+        [
+            'terms' => ['luz', 'visual', 'color', 'proyector', 'ambiente'],
+            'category' => 'Visual',
+            'hints' => ['luz', 'color', 'proyecta', 'luminoso'],
+            'reason' => 'Encaja con tu preferencia por una experiencia visual envolvente.',
+        ],
+        [
+            'terms' => ['tacto', 'textura', 'manos', 'presion', 'sensorial'],
+            'category' => 'Táctil',
+            'hints' => ['textura', 'manos', 'presion', 'relieve'],
+            'reason' => 'Está pensado para canalizar la atención mediante textura y presión controlada.',
+        ],
+        [
+            'terms' => ['sonido', 'ruido', 'audio', 'musica', 'escuchar'],
+            'category' => 'Sonoro',
+            'hints' => ['sonido', 'ruido', 'paisajes', 'lluvia'],
+            'reason' => 'Aporta un fondo sonoro estable que ayuda a regular el ambiente.',
+        ],
+    ];
+
+    $scores = array_fill(0, count($products), 0);
+    $reasons = [];
+    foreach ($products as $index => $product) {
+        $haystack = normalize_recommendation_text(implode(' ', [
+            (string)($product['name'] ?? ''),
+            (string)($product['category'] ?? ''),
+            (string)($product['description'] ?? ''),
+        ]));
+        foreach ($tokens as $token) {
+            if (str_contains($haystack, $token)) $scores[$index] += 2;
+        }
+    }
+
+    foreach ($rules as $rule) {
+        $matchesIntent = false;
+        foreach ($rule['terms'] as $term) {
+            if (str_contains($query, $term)) {
+                $matchesIntent = true;
+                break;
+            }
+        }
+        if (!$matchesIntent) continue;
+        $reasons[] = $rule['reason'];
+        foreach ($products as $index => $product) {
+            if (normalize_recommendation_text((string)($product['category'] ?? '')) === normalize_recommendation_text($rule['category'])) {
+                $scores[$index] += 7;
+            }
+            $haystack = normalize_recommendation_text((string)($product['description'] ?? ''));
+            foreach ($rule['hints'] as $hint) {
+                if (str_contains($haystack, normalize_recommendation_text($hint))) $scores[$index] += 3;
+            }
+        }
+    }
+
+    if (str_contains($query, 'barato') || str_contains($query, 'economico') || str_contains($query, 'precio')) {
+        foreach ($products as $index => $product) {
+            $scores[$index] += max(0, 5 - (int)floor((float)($product['price'] ?? 0) / 20));
+        }
+        $reasons[] = 'Además, mantiene una relación equilibrada entre utilidad y precio.';
+    }
+
+    $bestIndex = 0;
+    foreach ($scores as $index => $score) {
+        if ($score > $scores[$bestIndex]) $bestIndex = $index;
+    }
+    $product = $products[$bestIndex];
+    $reason = $reasons[0] ?? 'Es una opción versátil para empezar una rutina sensorial sencilla.';
+    $price = number_format((float)($product['price'] ?? 0), 2, ',', '.');
+
+    return [
+        'recommendation' => sprintf(
+            '%s es nuestra mejor recomendación para ti. %s Su precio es %s € y puedes encontrarlo ahora mismo en el catálogo.',
+            (string)$product['name'],
+            $reason,
+            $price
+        ),
+        'product' => [
+            'id' => (int)($product['id'] ?? 0),
+            'name' => (string)($product['name'] ?? ''),
+            'category' => (string)($product['category'] ?? ''),
+            'price' => (float)($product['price'] ?? 0),
+        ],
+        'mode' => 'catalog_intelligence',
+    ];
 }
 
 function attach_order_data(array $orders): array {

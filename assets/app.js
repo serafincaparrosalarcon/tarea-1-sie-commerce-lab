@@ -480,7 +480,10 @@
   }
 
   function renderAuth(mode) {
-    openModal(`<div class="auth"><div class="auth-tabs"><button class="${mode === 'login' ? 'active' : ''}" data-auth="login">Iniciar sesión</button><button class="${mode === 'register' ? 'active' : ''}" data-auth="register">Registrarse</button></div><form id="authForm"><label>Nombre<input name="name" ${mode === 'login' ? 'hidden' : ''}></label><label>Email<input type="email" name="email" required></label><label>Contraseña<input type="password" name="password" required></label><button class="primary" type="submit">${mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button></form></div>`);
+    const intro = mode === 'login'
+      ? 'Accede con tu cuenta de Sensoria. Es independiente del acceso de DonDominio.'
+      : 'Crea una cuenta de prueba para consultar tus pedidos simulados.';
+    openModal(`<div class="auth"><div class="auth-tabs"><button type="button" class="${mode === 'login' ? 'active' : ''}" data-auth="login">Iniciar sesión</button><button type="button" class="${mode === 'register' ? 'active' : ''}" data-auth="register">Registrarse</button></div><p class="auth-intro">${intro}</p><form id="authForm">${mode === 'register' ? '<label>Nombre<input name="name" autocomplete="name" required></label>' : ''}<label>Correo electrónico<input type="email" name="email" autocomplete="username" required></label><label>Contraseña<input type="password" name="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" ${mode === 'register' ? 'minlength="8"' : ''} required></label><p id="authError" class="auth-error" role="alert" hidden></p><button class="primary" type="submit">${mode === 'login' ? 'Entrar en mi cuenta' : 'Crear cuenta'}</button></form></div>`);
     $$('[data-auth]').forEach(btn => btn.addEventListener('click', () => renderAuth(btn.dataset.auth)));
     $('#authForm').addEventListener('submit', e => submitAuth(e, mode));
   }
@@ -505,6 +508,11 @@
       toast(mode === 'login' ? 'Sesión iniciada' : 'Cuenta creada');
       showView('account');
     } catch (error) {
+      const errorBox = $('#authError');
+      if (errorBox) {
+        errorBox.textContent = error.message || 'No se pudo completar la operación';
+        errorBox.hidden = false;
+      }
       toast(error.message || 'No se pudo completar la operación');
     }
   }
@@ -768,6 +776,7 @@
 const runAdvisor = async () => {
   const input = document.getElementById('ai-query');
   const resultBox = document.getElementById('ai-result');
+  const submitButton = document.getElementById('ai-btn');
   const query = input?.value.trim();
 
   if (!query) {
@@ -778,7 +787,9 @@ const runAdvisor = async () => {
   }
 
   resultBox.hidden = false;
-  resultBox.textContent = 'Analizando el catálogo de Sensoria…';
+  resultBox.innerHTML = '<span class="advisor-thinking"><i></i><span><b>Analizando tu necesidad</b><small>Comparando estímulo, uso y momento del día…</small></span></span>';
+  submitButton.disabled = true;
+  submitButton.innerHTML = 'Analizando…';
 
   try {
     const res = await fetch('api/index.php?action=recommend', {
@@ -789,12 +800,26 @@ const runAdvisor = async () => {
     const data = await res.json();
     if (data.recommendation) {
       const safeRecommendation = String(data.recommendation).replace(/[&<>"'`]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[character]));
-      resultBox.innerHTML = `<strong>Recomendación personalizada:</strong><br>${safeRecommendation.replace(/\n/g, '<br>')}`;
+      const product = data.product || null;
+      if (product) {
+        const safeName = String(product.name || '').replace(/[&<>"'`]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[character]));
+        const safeCategory = String(product.category || '').replace(/[&<>"'`]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[character]));
+        const formattedPrice = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(Number(product.price || 0));
+        resultBox.innerHTML = `<div class="advisor-result-label">✦ RECOMENDACIÓN PERSONALIZADA</div><div class="advisor-pick"><span><small>${safeCategory}</small><b>${safeName}</b></span><strong>${formattedPrice}</strong><button type="button" data-advisor-product="${Number(product.id) || 0}">Ver producto →</button></div><p>${safeRecommendation.replace(/\n/g, '<br>')}</p>`;
+        resultBox.querySelector('[data-advisor-product]')?.addEventListener('click', event => {
+          document.querySelector(`[data-detail="${event.currentTarget.dataset.advisorProduct}"]`)?.click();
+        });
+      } else {
+        resultBox.innerHTML = `<div class="advisor-result-label">✦ RECOMENDACIÓN PERSONALIZADA</div><p>${safeRecommendation.replace(/\n/g, '<br>')}</p>`;
+      }
     } else {
       resultBox.textContent = data.error || 'No se pudo generar recomendación.';
     }
   } catch (e) {
     resultBox.textContent = 'Error de conexión con el servicio.';
+  } finally {
+    submitButton.disabled = false;
+    submitButton.innerHTML = 'Recomendarme <span aria-hidden="true">→</span>';
   }
 };
 

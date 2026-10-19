@@ -20,7 +20,7 @@
   <meta name="twitter:image" content="https://www.sensoria.onl/assets/products/aura-wave.jpg">
   <title>Sensoria · Bienestar sensorial</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23244a68'/%3E%3Cpath d='M13 23c7-8 13 8 20 0s13 8 20 0M13 33c7-8 13 8 20 0s13 8 20 0M13 43c7-8 13 8 20 0s13 8 20 0' fill='none' stroke='%23ffc36b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="assets/styles.css?v=2.0">
+  <link rel="stylesheet" href="assets/styles.css?v=2.2">
   <link rel="stylesheet" href="assets/paypal.css?v=1.0">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Sensoria","url":"https://www.sensoria.onl/","description":"Proyecto académico de comercio electrónico dedicado al bienestar sensorial para adultos."}</script>
 </head>
@@ -46,10 +46,11 @@
     <section class="sensory shell" aria-label="Categorías sensoriales"><button data-category="Visual"><i>◐</i><span><b>Visual</b><small>Luz y proyección</small></span>→</button><button data-category="Táctil"><i>⌁</i><span><b>Táctil</b><small>Texturas antiestrés</small></span>→</button><button data-category="Sonoro"><i>♫</i><span><b>Sonoro</b><small>Ambientes de calma</small></span>→</button></section>
 
     <section id="advisor" class="advisor shell" aria-labelledby="advisorTitle">
-      <div class="advisor-copy"><span class="advisor-mark" aria-hidden="true">✦</span><p class="eyebrow">ASESOR SENSORIA</p><h2 id="advisorTitle">Encuentra tu pausa ideal</h2><p>Describe cómo quieres sentirte y te recomendaremos una opción del catálogo.</p></div>
+      <div class="advisor-copy"><span class="advisor-mark" aria-hidden="true">✦</span><p class="eyebrow">ASESOR INTELIGENTE</p><h2 id="advisorTitle">Tu recomendación, en segundos.</h2><p>Cuéntanos qué necesitas y analizaremos el catálogo para encontrar la opción que mejor encaja contigo.</p></div>
       <div class="advisor-tool">
+        <div class="advisor-status"><span><i aria-hidden="true"></i> Asesor activo</span><small>Analiza objetivo, momento y estímulo</small></div>
         <div class="advisor-chips" aria-label="Consultas rápidas"><button type="button" data-ai-prompt="Quiero dormir mejor y prefiero un estímulo suave">Dormir mejor</button><button type="button" data-ai-prompt="Necesito concentrarme sin distracciones">Concentrarme</button><button type="button" data-ai-prompt="Busco reducir el estrés al final del día">Reducir estrés</button></div>
-        <div class="advisor-search"><label class="sr-only" for="ai-query">Describe lo que necesitas</label><input type="text" id="ai-query" placeholder="Ej.: busco algo suave para desconectar antes de dormir"><button type="button" id="ai-btn" class="primary">Obtener recomendación</button></div>
+        <div class="advisor-search"><label class="sr-only" for="ai-query">Describe lo que necesitas</label><span class="advisor-search-icon" aria-hidden="true">⌕</span><input type="text" id="ai-query" autocomplete="off" placeholder="Ej.: quiero desconectar antes de dormir"><button type="button" id="ai-btn" class="primary">Recomendarme <span aria-hidden="true">→</span></button></div>
         <div id="ai-result" class="advisor-result" role="status" aria-live="polite" hidden></div>
       </div>
     </section>
@@ -108,5 +109,5 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <aside id="cookieBanner" class="cookie-banner" aria-label="Preferencias de cookies" hidden><div><b>Cookies y almacenamiento técnico</b><p>Usamos únicamente datos técnicos para la sesión, el carrito y tu elección. No hay publicidad ni analítica de terceros.</p><button data-view="cookies" class="cookie-link">Ver política</button></div><div class="cookie-actions"><button id="necessaryCookies" class="secondary">Solo necesarias</button><button id="acceptCookies" class="primary">Aceptar todas</button></div></aside>
   <script>window.SENSORIA={api:'api/index.php'};</script>
-  <script src="assets/app.js?v=2.1" defer></script>
+  <script src="assets/app.js?v=2.2" defer></script>
 </body></html>
