@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "order.created payload",
+  "type": "object",
+  "required": ["order_id", "order_number", "status", "currency", "total", "placed_at", "customer", "items"],
+  "properties": {
+    "order_id": { "type": ["string", "integer"] },
+    "order_number": { "type": "string", "pattern": "^SEN-" },
+    "status": { "type": "string" },
+    "currency": { "type": "string", "const": "EUR" },
+    "subtotal": { "type": "number", "minimum": 0 },
+    "discount": { "type": "number", "minimum": 0 },
+    "shipping": { "type": "number", "minimum": 0 },
+    "total": { "type": "number", "minimum": 0 },
+    "placed_at": { "type": "string", "format": "date-time" },
+    "customer": {
+      "type": "object",
+      "required": ["name", "email"],
+      "properties": {
+        "id": { "type": ["string", "integer"] },
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "telegram_chat_id": { "type": "string" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["product_name", "quantity", "unit_price"],
+        "properties": {
+          "product_id": { "type": ["string", "integer"] },
+          "sku": { "type": "string" },
+          "product_name": { "type": "string", "minLength": 1 },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unit_price": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

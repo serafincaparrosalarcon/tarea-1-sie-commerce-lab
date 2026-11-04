@@ -1,0 +1,23 @@
+{
+  "event_id": "evt-support-20261104-001",
+  "event_type": "support.requested",
+  "occurred_at": "2026-11-04T10:45:00.000Z",
+  "source": "sensoria-frontoffice",
+  "idempotency_key": "support-SOP-20261104-001",
+  "payload": {
+    "case_id": "SOP-20261104-001",
+    "case_type": "INCIDENCIA",
+    "subject": "Producto recibido con una pieza dañada",
+    "message": "La base de Aura Wave presenta una grieta. Solicito ayuda para revisar el pedido y conocer las opciones disponibles.",
+    "priority": "ALTA",
+    "channel": "WEB",
+    "order_id": "1001",
+    "order_number": "SEN-2026-1104-001",
+    "customer": {
+      "id": "demo-customer-001",
+      "name": "Cliente Demo",
+      "email": "cliente.demo@sensoria.local",
+      "phone": "+34600000000"
+    }
+  }
+}

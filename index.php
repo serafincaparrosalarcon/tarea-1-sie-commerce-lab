@@ -21,6 +21,7 @@
   <title>Sensoria · Bienestar sensorial</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23244a68'/%3E%3Cpath d='M13 23c7-8 13 8 20 0s13 8 20 0M13 33c7-8 13 8 20 0s13 8 20 0M13 43c7-8 13 8 20 0s13 8 20 0' fill='none' stroke='%23ffc36b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="assets/styles.css?v=2.2">
+  <link rel="stylesheet" href="assets/crm.css?v=1.0">
   <link rel="stylesheet" href="assets/paypal.css?v=1.0">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Sensoria","url":"https://www.sensoria.onl/","description":"Proyecto académico de comercio electrónico dedicado al bienestar sensorial para adultos."}</script>
 </head>

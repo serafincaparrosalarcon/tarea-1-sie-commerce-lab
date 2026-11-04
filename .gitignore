@@ -1,3 +1,10 @@
 config.local.php
 *.log
 .DS_Store
+.env
+backoffice/.env
+backoffice/data/*.sqlite*
+.presentation-build/
+.codex-finalizer/
+.chart-data-*/
+output/package/*.zip

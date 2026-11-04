@@ -1,0 +1,136 @@
+{
+  "name": "Sensoria · Integración Front-office a Operations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sensoria-events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook Sensoria",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, 80],
+      "webhookId": "sensoria-events-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst input = $json.body ?? $json;\nconst allowed = ['order.created','payment.simulated','order.status_changed','stock.changed','support.requested','return.requested','incident.created'];\nconst errors = [];\nfor (const key of ['event_id','event_type','occurred_at','source','idempotency_key','payload']) { if (input[key] === undefined || input[key] === null || input[key] === '') errors.push(`Falta ${key}`); }\nif (input.event_type && !allowed.includes(input.event_type)) errors.push('event_type no permitido');\nif (input.occurred_at && Number.isNaN(Date.parse(input.occurred_at))) errors.push('occurred_at no es ISO-8601');\nif (typeof input.payload !== 'object' || Array.isArray(input.payload)) errors.push('payload debe ser objeto');\nif (errors.length) return [{ json: { valid: false, errors, trace_id: input.event_id ?? 'unknown' } }];\nconst event = { event_id: String(input.event_id), event_type: String(input.event_type), occurred_at: new Date(input.occurred_at).toISOString(), source: String(input.source), idempotency_key: String(input.idempotency_key), payload: input.payload };\nconst raw_body = JSON.stringify(event);\nconst secret = $env.INTEGRATION_SHARED_SECRET;\nif (!secret) return [{ json: { valid: false, errors: ['INTEGRATION_SHARED_SECRET no configurado'], trace_id: event.event_id } }];\nconst signature = crypto.createHmac('sha256', secret).update(raw_body).digest('hex');\nreturn [{ json: { valid: true, event, raw_body, signature: `sha256=${signature}`, idempotency_key: event.idempotency_key, trace_id: event.event_id, is_post_sale: ['support.requested','return.requested','incident.created'].includes(event.event_type) } }];"
+      },
+      "id": "2",
+      "name": "Validar normalizar y firmar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-660, 80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "valid", "leftValue": "={{ $json.valid }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "¿Payload válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-410, 80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKOFFICE_URL + '/api/integrations/events' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "X-Sensoria-Signature", "value": "={{ $json.signature }}" },
+          { "name": "X-Idempotency-Key", "value": "={{ $json.idempotency_key }}" }
+        ] },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.raw_body }}",
+        "options": { "response": { "response": { "neverError": true, "responseFormat": "json" } }, "timeout": 10000 }
+      },
+      "id": "4",
+      "name": "Crear o actualizar en Operations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-150, -40],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\nconst ok = response.ok === true || response.status === 'SUCCESS';\nreturn [{ json: { ok, trace_id: response.trace_id ?? $('Validar normalizar y firmar').item.json.trace_id, integration_id: response.integration_id ?? null, entity_type: response.entity_type ?? null, entity_id: response.entity_id ?? null, duplicate: response.duplicate ?? false, follow_up: $('Validar normalizar y firmar').item.json.is_post_sale ? 'Caso postventa disponible para análisis supervisado' : 'Sin seguimiento adicional', processed_at: new Date().toISOString() } }];"
+      },
+      "id": "5",
+      "name": "Registrar éxito y seguimiento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [110, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "6",
+      "name": "Responder éxito",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [370, -80]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: false, error: 'VALIDATION_ERROR', details: $json.errors ?? ['Payload no válido'], trace_id: $json.trace_id ?? 'unknown', logged_at: new Date().toISOString() } }];"
+      },
+      "id": "7",
+      "name": "Registrar error de validación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-150, 210]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 422 }
+      },
+      "id": "8",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [110, 210]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: false, error: 'BACKOFFICE_ERROR', message: $json.error?.message ?? $json.message ?? 'Fallo al llamar a Operations', trace_id: $('Validar normalizar y firmar').item.json.trace_id, logged_at: new Date().toISOString() } }];"
+      },
+      "id": "9",
+      "name": "Registrar error técnico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [110, 80]
+    }
+  ],
+  "connections": {
+    "Webhook Sensoria": { "main": [[{ "node": "Validar normalizar y firmar", "type": "main", "index": 0 }]] },
+    "Validar normalizar y firmar": { "main": [[{ "node": "¿Payload válido?", "type": "main", "index": 0 }]] },
+    "¿Payload válido?": { "main": [[{ "node": "Crear o actualizar en Operations", "type": "main", "index": 0 }], [{ "node": "Registrar error de validación", "type": "main", "index": 0 }]] },
+    "Crear o actualizar en Operations": { "main": [[{ "node": "Registrar éxito y seguimiento", "type": "main", "index": 0 }], [{ "node": "Registrar error técnico", "type": "main", "index": 0 }]] },
+    "Registrar éxito y seguimiento": { "main": [[{ "node": "Responder éxito", "type": "main", "index": 0 }]] },
+    "Registrar error de validación": { "main": [[{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Registrar error técnico": { "main": [[{ "node": "Responder error", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all", "saveManualExecutions": true },
+  "versionId": "b273d2d5-55cb-44fd-9d1a-2a0d24c2f511",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}

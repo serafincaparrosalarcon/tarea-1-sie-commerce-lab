@@ -1,0 +1,8 @@
+{
+  "event_id": "evt-invalid-20261104-001",
+  "event_type": "order.created",
+  "occurred_at": "fecha-no-valida",
+  "source": "sensoria-frontoffice",
+  "idempotency_key": "invalid-demo-001",
+  "payload": {}
+}

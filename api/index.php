@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/config.php';
 require dirname(__DIR__) . '/lib/notifications.php';
+require dirname(__DIR__) . '/lib/integration.php';
 
 session_set_cookie_params([
     'lifetime' => SESSION_LIFETIME,
@@ -224,6 +225,7 @@ try {
             'created_at' => date('Y-m-d H:i:s'),
             'items' => array_map(static fn (array $line): array => [
                 'product_id' => $line['id'],
+                'sku' => $products[$line['id']]['sku'],
                 'product_name' => $products[$line['id']]['name'],
                 'quantity' => $line['qty'],
                 'unit_price' => $line['unit'],
@@ -244,7 +246,29 @@ try {
         }
 
         $pdo->commit();
-        respond(['order' => $order, 'notifications' => $notifications], 201);
+        try {
+            $integration = integration_emit($pdo, 'order.created', [
+                'order_id' => (string)$order['id'],
+                'order_number' => $order['order_number'],
+                'status' => $order['status'],
+                'currency' => 'EUR',
+                'subtotal' => $order['subtotal'],
+                'discount' => $order['discount'],
+                'shipping' => $order['shipping'],
+                'total' => $order['total'],
+                'placed_at' => date(DATE_ATOM, strtotime((string)$order['created_at'])),
+                'customer' => [
+                    'id' => isset($_SESSION['user']['id']) ? (string)$_SESSION['user']['id'] : null,
+                    'name' => $order['customer_name'],
+                    'email' => $order['customer_email'],
+                    'phone' => $order['phone'],
+                ],
+                'items' => $order['items'],
+            ], 'order-' . $order['id'] . '-created-v1');
+        } catch (Throwable $integrationError) {
+            $integration = ['status' => 'ERROR', 'error' => $integrationError->getMessage()];
+        }
+        respond(['order' => $order, 'notifications' => $notifications, 'integration' => $integration], 201);
     }
 
     if ($action === 'my_orders' && $method === 'GET') {
@@ -267,6 +291,8 @@ try {
         if ($reason === '' || $details === '' || strlen($details) > 3000) respond(['error' => 'Indica el motivo y una explicación breve'], 422);
         $stmt = db()->prepare('INSERT INTO returns(order_id,reason,details,status) VALUES(?,?,?,"SOLICITADA")');
         $stmt->execute([(int)$order['id'], $reason, $details]);
+        $returnId = (int)db()->lastInsertId();
+        $reference = 'RET-' . date('Ymd') . '-' . str_pad((string)$returnId, 5, '0', STR_PAD_LEFT);
         db()->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
             'support.requested',
             (string)($b['session_id'] ?? 'WEB'),
@@ -279,7 +305,38 @@ try {
             (int)$order['id'],
             json_encode(['reason' => $reason]),
         ]);
-        respond(['ok' => true], 201);
+        $case = [
+            'reference' => $reference,
+            'case_type' => 'DEVOLUCION',
+            'subject' => 'Solicitud de devolución · ' . $reason,
+            'message' => $details,
+            'order_number' => $order['order_number'],
+            'customer_name' => $order['customer_name'],
+            'customer_email' => $order['customer_email'],
+        ];
+        db()->prepare('INSERT INTO support_requests(reference,order_id,customer_name,customer_email,case_type,subject,message) VALUES(?,?,?,?,?,?,?)')
+            ->execute([$reference, (int)$order['id'], $order['customer_name'], $order['customer_email'], 'DEVOLUCION', $case['subject'], $details]);
+        try {
+            $adminNotification = dispatch_admin_case_notification(db(), $case);
+        } catch (Throwable $notificationError) {
+            $adminNotification = ['delivery_status' => 'ERROR', 'error_message' => $notificationError->getMessage()];
+        }
+        try {
+            $integration = integration_emit(db(), 'return.requested', [
+                'case_id' => $reference,
+                'case_type' => 'DEVOLUCION',
+                'subject' => $case['subject'],
+                'message' => $details,
+                'priority' => 'ALTA',
+                'channel' => 'WEB',
+                'order_id' => (string)$order['id'],
+                'order_number' => $order['order_number'],
+                'customer' => ['id' => (string)$user['id'], 'name' => $order['customer_name'], 'email' => $order['customer_email'], 'phone' => $order['phone']],
+            ], 'return-' . $returnId . '-requested-v1');
+        } catch (Throwable $integrationError) {
+            $integration = ['status' => 'ERROR', 'error' => $integrationError->getMessage()];
+        }
+        respond(['ok' => true, 'reference' => $reference, 'admin_notification' => $adminNotification, 'integration' => $integration], 201);
     }
 
     if ($action === 'support' && $method === 'POST') {
@@ -301,13 +358,38 @@ try {
             $orderId = $found ? (int)$found['id'] : null;
         }
         $sessionId = substr(preg_replace('/[^A-Za-z0-9_-]/', '', (string)($b['session_id'] ?? '')), 0, 80) ?: 'WEB';
+        $reference = 'SOP-' . date('Ymd-His') . '-' . strtoupper(bin2hex(random_bytes(2)));
         db()->prepare('INSERT INTO events(event_type,session_id,order_id,payload) VALUES(?,?,?,?)')->execute([
             'support.requested',
             $sessionId,
             $orderId,
             json_encode(['name' => $name, 'email' => $email, 'kind' => $kind, 'order_number' => $orderNumber, 'message' => $message], JSON_UNESCAPED_UNICODE),
         ]);
-        respond(['ok' => true, 'reference' => 'SOP-' . date('Ymd-His')], 201);
+        $subject = $kind . ($orderNumber !== '' ? ' · pedido ' . $orderNumber : '');
+        db()->prepare('INSERT INTO support_requests(reference,order_id,customer_name,customer_email,case_type,subject,message) VALUES(?,?,?,?,?,?,?)')
+            ->execute([$reference, $orderId, $name, $email, strtoupper($kind), $subject, $message]);
+        $case = ['reference' => $reference, 'case_type' => strtoupper($kind), 'subject' => $subject, 'message' => $message, 'order_number' => $orderNumber, 'customer_name' => $name, 'customer_email' => $email];
+        try {
+            $adminNotification = dispatch_admin_case_notification(db(), $case);
+        } catch (Throwable $notificationError) {
+            $adminNotification = ['delivery_status' => 'ERROR', 'error_message' => $notificationError->getMessage()];
+        }
+        try {
+            $integration = integration_emit(db(), 'support.requested', [
+                'case_id' => $reference,
+                'case_type' => strtoupper($kind),
+                'subject' => $subject,
+                'message' => $message,
+                'priority' => 'MEDIA',
+                'channel' => 'WEB',
+                'order_id' => $orderId !== null ? (string)$orderId : null,
+                'order_number' => $orderNumber !== '' ? $orderNumber : null,
+                'customer' => ['id' => null, 'name' => $name, 'email' => $email],
+            ], 'support-' . $reference . '-v1');
+        } catch (Throwable $integrationError) {
+            $integration = ['status' => 'ERROR', 'error' => $integrationError->getMessage()];
+        }
+        respond(['ok' => true, 'reference' => $reference, 'admin_notification' => $adminNotification, 'integration' => $integration], 201);
     }
 
     if ($action === 'recommend' && $method === 'POST') {
@@ -388,13 +470,112 @@ try {
         $coupons = db()->query('SELECT * FROM coupons ORDER BY id DESC')->fetchAll();
         $events = db()->query('SELECT * FROM events ORDER BY id DESC LIMIT 80')->fetchAll();
         $returns = db()->query('SELECT r.*,o.order_number,o.customer_name,o.customer_email,o.total order_total FROM returns r JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC LIMIT 50')->fetchAll();
-        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'events' => $events, 'returns' => $returns, 'notification_config' => ['email_enabled' => MAIL_ENABLED, 'sms_enabled' => SMS_ENABLED]]);
+        $supportRequests = db()->query('SELECT * FROM support_requests ORDER BY id DESC LIMIT 80')->fetchAll();
+        $adminNotifications = db()->query('SELECT * FROM admin_notifications ORDER BY id DESC LIMIT 80')->fetchAll();
+        $integrationOutbox = db()->query('SELECT id,event_id,event_type,status,attempts,http_status,last_error,created_at,delivered_at FROM integration_outbox ORDER BY id DESC LIMIT 100')->fetchAll();
+        respond(['orders' => $orders, 'products' => $products, 'customers' => $customers, 'notifications' => $notifications, 'coupons' => $coupons, 'events' => $events, 'returns' => $returns, 'support_requests' => $supportRequests, 'admin_notifications' => $adminNotifications, 'integration_outbox' => $integrationOutbox, 'notification_config' => ['email_enabled' => MAIL_ENABLED, 'sms_enabled' => SMS_ENABLED, 'admin_email' => ADMIN_NOTIFICATION_EMAIL], 'integration_config' => ['enabled' => INTEGRATION_ENABLED]]);
     }
 
     if ($action === 'crm' && $method === 'GET') {
         require_admin();
-        $sql = "SELECT customer_email email,MAX(customer_name) name,COUNT(*) orders,ROUND(SUM(total),2) spend,MAX(created_at) last_order,CASE WHEN SUM(total)>=500 OR COUNT(*)>=4 THEN 'VIP' ELSE 'REGULAR' END segment FROM orders GROUP BY customer_email ORDER BY spend DESC LIMIT 20";
-        respond(['customers' => db()->query($sql)->fetchAll()]);
+        respond(crm_dashboard_data());
+    }
+
+    if ($action === 'crm_customer' && $method === 'GET') {
+        require_admin();
+        $email = strtolower(trim((string)($_GET['email'] ?? '')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) respond(['error' => 'Cliente no válido'], 422);
+        crm_seed_customer($email);
+
+        $profileStmt = db()->prepare("SELECT c.*,a.name,a.phone order_phone,a.orders,a.spend,a.average_order,a.first_order,a.last_order,
+            CASE WHEN c.status='BLOQUEADO' THEN 'BLOQUEADO' WHEN a.spend>=500 OR a.orders>=4 THEN 'VIP'
+                 WHEN c.status IN ('EN_RIESGO','INACTIVO') THEN c.status WHEN a.orders=1 THEN 'NUEVO' ELSE 'ACTIVO' END segment
+            FROM crm_customers c
+            JOIN (SELECT LOWER(customer_email) email,MAX(customer_name) name,MAX(phone) phone,COUNT(*) orders,
+                         ROUND(SUM(total),2) spend,ROUND(AVG(total),2) average_order,MIN(created_at) first_order,MAX(created_at) last_order
+                  FROM orders GROUP BY LOWER(customer_email)) a ON a.email=c.customer_email
+            WHERE c.customer_email=?");
+        $profileStmt->execute([$email]);
+        $profile = $profileStmt->fetch();
+        if (!$profile) respond(['error' => 'Cliente no encontrado'], 404);
+
+        $ordersStmt = db()->prepare('SELECT * FROM orders WHERE LOWER(customer_email)=? ORDER BY id DESC');
+        $ordersStmt->execute([$email]);
+        $orders = attach_order_data($ordersStmt->fetchAll());
+        $supportStmt = db()->prepare('SELECT * FROM support_requests WHERE LOWER(customer_email)=? ORDER BY id DESC');
+        $supportStmt->execute([$email]);
+        $returnsStmt = db()->prepare('SELECT r.*,o.order_number FROM returns r JOIN orders o ON o.id=r.order_id WHERE LOWER(o.customer_email)=? ORDER BY r.id DESC');
+        $returnsStmt->execute([$email]);
+        $interactionsStmt = db()->prepare('SELECT * FROM crm_interactions WHERE customer_email=? ORDER BY id DESC LIMIT 100');
+        $interactionsStmt->execute([$email]);
+        respond(['customer' => $profile, 'orders' => $orders, 'support' => $supportStmt->fetchAll(), 'returns' => $returnsStmt->fetchAll(), 'interactions' => $interactionsStmt->fetchAll()]);
+    }
+
+    if ($action === 'crm_customer_save' && $method === 'POST') {
+        require_admin();
+        $b = json_input();
+        require_csrf($b);
+        $email = strtolower(trim((string)($b['email'] ?? '')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) respond(['error' => 'Correo de cliente no válido'], 422);
+        $status = (string)($b['status'] ?? 'ACTIVO');
+        $stage = (string)($b['lifecycle_stage'] ?? 'CLIENTE');
+        if (!in_array($status, ['ACTIVO','EN_RIESGO','INACTIVO','BLOQUEADO'], true)) respond(['error' => 'Estado CRM no válido'], 422);
+        if (!in_array($stage, ['LEAD','PRIMERA_COMPRA','CLIENTE','FIDELIZADO'], true)) respond(['error' => 'Etapa no válida'], 422);
+        crm_seed_customer($email);
+        $nextFollowUp = crm_datetime_or_null($b['next_follow_up_at'] ?? null);
+        $stmt = db()->prepare('UPDATE crm_customers SET status=?,lifecycle_stage=?,owner=?,source=?,phone=?,tags=?,notes=?,next_follow_up_at=?,consent_marketing=? WHERE customer_email=?');
+        $stmt->execute([
+            $status,
+            $stage,
+            substr(trim((string)($b['owner'] ?? '')), 0, 120) ?: null,
+            substr(trim((string)($b['source'] ?? 'TIENDA_ONLINE')), 0, 80) ?: 'TIENDA_ONLINE',
+            substr(trim((string)($b['phone'] ?? '')), 0, 30) ?: null,
+            substr(trim((string)($b['tags'] ?? '')), 0, 500) ?: null,
+            substr(trim((string)($b['notes'] ?? '')), 0, 5000) ?: null,
+            $nextFollowUp,
+            !empty($b['consent_marketing']) ? 1 : 0,
+            $email,
+        ]);
+        respond(['ok' => true]);
+    }
+
+    if ($action === 'crm_interaction_create' && $method === 'POST') {
+        $admin = require_admin();
+        $b = json_input();
+        require_csrf($b);
+        $email = strtolower(trim((string)($b['email'] ?? '')));
+        $type = (string)($b['interaction_type'] ?? 'NOTA');
+        $subject = trim((string)($b['subject'] ?? ''));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '') respond(['error' => 'Faltan el cliente o el asunto'], 422);
+        if (!in_array($type, ['NOTA','LLAMADA','EMAIL','TAREA','CAMBIO_ESTADO'], true)) respond(['error' => 'Tipo de actividad no válido'], 422);
+        crm_seed_customer($email);
+        $followUp = crm_datetime_or_null($b['follow_up_at'] ?? null);
+        $stmt = db()->prepare('INSERT INTO crm_interactions(customer_email,interaction_type,subject,body,outcome,follow_up_at,created_by) VALUES(?,?,?,?,?,?,?)');
+        $stmt->execute([$email, $type, substr($subject, 0, 190), substr(trim((string)($b['body'] ?? '')), 0, 5000) ?: null, substr(trim((string)($b['outcome'] ?? '')), 0, 190) ?: null, $followUp, (string)$admin['email']]);
+        if (in_array($type, ['LLAMADA','EMAIL'], true)) {
+            db()->prepare('UPDATE crm_customers SET last_contact_at=NOW() WHERE customer_email=?')->execute([$email]);
+        }
+        if ($followUp) {
+            db()->prepare('UPDATE crm_customers SET next_follow_up_at=? WHERE customer_email=?')->execute([$followUp, $email]);
+        }
+        respond(['ok' => true, 'id' => (int)db()->lastInsertId()], 201);
+    }
+
+    if ($action === 'crm_interaction_complete' && $method === 'POST') {
+        require_admin();
+        $b = json_input();
+        require_csrf($b);
+        $id = (int)($b['id'] ?? 0);
+        $stmt = db()->prepare('SELECT customer_email FROM crm_interactions WHERE id=?');
+        $stmt->execute([$id]);
+        $interaction = $stmt->fetch();
+        if (!$interaction) respond(['error' => 'Actividad no encontrada'], 404);
+        db()->prepare('UPDATE crm_interactions SET completed=1,completed_at=NOW() WHERE id=?')->execute([$id]);
+        $nextStmt = db()->prepare('SELECT MIN(follow_up_at) next_follow_up FROM crm_interactions WHERE customer_email=? AND completed=0 AND follow_up_at IS NOT NULL');
+        $nextStmt->execute([$interaction['customer_email']]);
+        $next = $nextStmt->fetch();
+        db()->prepare('UPDATE crm_customers SET next_follow_up_at=? WHERE customer_email=?')->execute([$next['next_follow_up'] ?? null, $interaction['customer_email']]);
+        respond(['ok' => true]);
     }
 
     if ($action === 'order_status' && $method === 'POST') {
@@ -404,6 +585,10 @@ try {
         $valid = ['PAGO_SIMULADO', 'PREPARACION', 'ENVIADO', 'ENTREGADO', 'CANCELADO'];
         $status = (string)($b['status'] ?? '');
         if (!in_array($status, $valid, true)) respond(['error' => 'Estado no válido'], 422);
+        $beforeStmt = db()->prepare('SELECT * FROM orders WHERE id=?');
+        $beforeStmt->execute([(int)($b['order_id'] ?? 0)]);
+        $before = $beforeStmt->fetch();
+        if (!$before) respond(['error' => 'Pedido no encontrado'], 404);
         $stmt = db()->prepare('UPDATE orders SET status=? WHERE id=?');
         $stmt->execute([$status, (int)($b['order_id'] ?? 0)]);
         $orderStmt = db()->prepare('SELECT * FROM orders WHERE id=?');
@@ -418,7 +603,16 @@ try {
                 $notifications = [['channel' => 'SISTEMA', 'delivery_status' => 'ERROR', 'error_message' => $notificationError->getMessage()]];
             }
         }
-        respond(['ok' => true, 'notifications' => $notifications]);
+        try {
+            $integration = integration_emit(db(), 'order.status_changed', [
+                'order_id' => (string)$before['id'], 'order_number' => $before['order_number'],
+                'previous_status' => $before['status'], 'status' => $status,
+                'changed_by' => (string)($_SESSION['user']['email'] ?? 'admin'),
+            ], 'order-' . $before['id'] . '-status-' . strtolower($status) . '-' . time());
+        } catch (Throwable $integrationError) {
+            $integration = ['status' => 'ERROR', 'error' => $integrationError->getMessage()];
+        }
+        respond(['ok' => true, 'notifications' => $notifications, 'integration' => $integration]);
     }
 
     if ($action === 'product_save' && $method === 'POST') {
@@ -436,8 +630,20 @@ try {
             $stmt = db()->prepare('INSERT INTO products(sku,name,category,description,long_description,price,stock,image) VALUES(?,?,?,?,?,?,?,?)');
             $sku = 'PRD-' . date('ymd') . '-' . random_int(100, 999);
             $stmt->execute([$sku, $name, trim((string)($b['category'] ?? 'Visual')), $description, trim((string)($b['long_description'] ?? $description)), (float)($b['price'] ?? 0), max(0, (int)($b['stock'] ?? 0)), trim((string)($b['image'] ?? ''))]);
+            $id = (int)db()->lastInsertId();
         }
-        respond(['ok' => true]);
+        $productStmt = db()->prepare('SELECT id,sku,name,stock FROM products WHERE id=?');
+        $productStmt->execute([$id]);
+        $product = $productStmt->fetch();
+        try {
+            $integration = integration_emit(db(), 'stock.changed', [
+                'product_id' => (string)$product['id'], 'sku' => $product['sku'],
+                'product_name' => $product['name'], 'stock' => (int)$product['stock'],
+            ], 'product-' . $product['id'] . '-stock-' . $product['stock'] . '-' . time());
+        } catch (Throwable $integrationError) {
+            $integration = ['status' => 'ERROR', 'error' => $integrationError->getMessage()];
+        }
+        respond(['ok' => true, 'integration' => $integration]);
     }
 
     if ($action === 'product_toggle' && $method === 'POST') {
@@ -518,6 +724,75 @@ try {
         $pdo->rollBack();
     }
     respond(['error' => $e->getMessage()], 500);
+}
+
+function crm_datetime_or_null(mixed $value): ?string {
+    $raw = trim((string)($value ?? ''));
+    if ($raw === '') return null;
+    $timestamp = strtotime($raw);
+    if ($timestamp === false) respond(['error' => 'Fecha de seguimiento no válida'], 422);
+    return date('Y-m-d H:i:s', $timestamp);
+}
+
+function crm_seed_customer(string $email): void {
+    $stmt = db()->prepare("INSERT IGNORE INTO crm_customers(customer_email,status,lifecycle_stage,phone)
+        SELECT LOWER(customer_email),
+               CASE WHEN MAX(created_at)<DATE_SUB(NOW(),INTERVAL 180 DAY) THEN 'INACTIVO'
+                    WHEN MAX(created_at)<DATE_SUB(NOW(),INTERVAL 90 DAY) THEN 'EN_RIESGO' ELSE 'ACTIVO' END,
+               CASE WHEN COUNT(*)=1 THEN 'PRIMERA_COMPRA'
+                    WHEN COUNT(*)>=4 OR SUM(total)>=500 THEN 'FIDELIZADO' ELSE 'CLIENTE' END,
+               MAX(phone)
+        FROM orders WHERE LOWER(customer_email)=? GROUP BY LOWER(customer_email)");
+    $stmt->execute([$email]);
+}
+
+function crm_dashboard_data(): array {
+    db()->exec("INSERT IGNORE INTO crm_customers(customer_email,status,lifecycle_stage,phone)
+        SELECT LOWER(customer_email),
+               CASE WHEN MAX(created_at)<DATE_SUB(NOW(),INTERVAL 180 DAY) THEN 'INACTIVO'
+                    WHEN MAX(created_at)<DATE_SUB(NOW(),INTERVAL 90 DAY) THEN 'EN_RIESGO' ELSE 'ACTIVO' END,
+               CASE WHEN COUNT(*)=1 THEN 'PRIMERA_COMPRA'
+                    WHEN COUNT(*)>=4 OR SUM(total)>=500 THEN 'FIDELIZADO' ELSE 'CLIENTE' END,
+               MAX(phone)
+        FROM orders GROUP BY LOWER(customer_email)");
+    $sql = "SELECT a.email,a.name,COALESCE(NULLIF(c.phone,''),a.phone) phone,a.orders,a.spend,a.average_order,a.first_order,a.last_order,
+                   c.status,c.lifecycle_stage,c.owner,c.source,c.tags,c.next_follow_up_at,c.last_contact_at,c.consent_marketing,
+                   (SELECT COUNT(*) FROM support_requests s WHERE LOWER(s.customer_email)=a.email AND s.status IN ('ABIERTA','EN_REVISION')) open_cases,
+                   (SELECT COUNT(*) FROM returns r JOIN orders ro ON ro.id=r.order_id WHERE LOWER(ro.customer_email)=a.email AND r.status IN ('SOLICITADA','APROBADA')) open_returns,
+                   CASE WHEN c.status='BLOQUEADO' THEN 'BLOQUEADO' WHEN a.spend>=500 OR a.orders>=4 THEN 'VIP'
+                        WHEN c.status IN ('EN_RIESGO','INACTIVO') THEN c.status WHEN a.orders=1 THEN 'NUEVO' ELSE 'ACTIVO' END segment
+            FROM (SELECT LOWER(customer_email) email,MAX(customer_name) name,MAX(phone) phone,COUNT(*) orders,
+                         ROUND(SUM(total),2) spend,ROUND(AVG(total),2) average_order,MIN(created_at) first_order,MAX(created_at) last_order
+                  FROM orders GROUP BY LOWER(customer_email)) a
+            JOIN crm_customers c ON c.customer_email=a.email
+            ORDER BY a.spend DESC,a.last_order DESC LIMIT 500";
+    $customers = db()->query($sql)->fetchAll();
+    $totalSpend = 0.0;
+    $repeat = 0;
+    $vip = 0;
+    $openCases = 0;
+    $followUpsDue = 0;
+    foreach ($customers as $customer) {
+        $totalSpend += (float)$customer['spend'];
+        if ((int)$customer['orders'] > 1) $repeat++;
+        if ($customer['segment'] === 'VIP') $vip++;
+        $openCases += (int)$customer['open_cases'];
+        if (!empty($customer['next_follow_up_at']) && strtotime((string)$customer['next_follow_up_at']) <= time()) $followUpsDue++;
+    }
+    $count = count($customers);
+    return [
+        'customers' => $customers,
+        'metrics' => [
+            'total_customers' => $count,
+            'total_spend' => round($totalSpend, 2),
+            'average_value' => $count ? round($totalSpend / $count, 2) : 0,
+            'repeat_rate' => $count ? round(($repeat / $count) * 100, 1) : 0,
+            'vip_count' => $vip,
+            'open_cases' => $openCases,
+            'follow_ups_due' => $followUpsDue,
+        ],
+        'generated_at' => date(DATE_ATOM),
+    ];
 }
 
 function normalize_recommendation_text(string $value): string {

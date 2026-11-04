@@ -11,10 +11,12 @@
     coupon: '',
     couponPercent: 0,
     admin: null,
+    crm: null,
     csrfToken: '',
     sessionId: (crypto?.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}`),
     adminTab: 'dashboard',
     adminSearch: '',
+    crmFilters: { query: '', segment: '', status: '', stage: '', sort: 'spend' },
     lastFocus: null,
   };
 
@@ -129,6 +131,7 @@
       state.category = b.dataset.category;
       $$('#categoryTabs button').forEach(x => x.classList.toggle('active', x.dataset.category === state.category));
       renderProducts();
+      if (b.closest('.sensory')) $('#catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
     $('#searchInput').addEventListener('input', e => {
       state.query = e.target.value;
@@ -615,6 +618,85 @@
     toast(choice === 'all' ? 'Preferencias guardadas' : 'Solo almacenamiento necesario');
   }
 
+  const shortDate = value => value ? new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(String(value).replace(' ', 'T'))) : 'Sin datos';
+  const localDateTimeValue = value => value ? String(value).replace(' ', 'T').slice(0, 16) : '';
+  const crmLabel = value => String(value || '').replaceAll('_', ' ');
+
+  function renderCrm(crmData) {
+    const customers = crmData?.customers || [];
+    const metrics = crmData?.metrics || {};
+    return `<div class="crm-shell">
+      ${crmData?.error ? `<div class="crm-system-alert"><b>El CRM necesita completar la migración</b><span>${escapeHtml(crmData.error)}. Ejecuta <code>migration_004_crm.sql</code>; mientras tanto se muestra una vista de solo lectura.</span></div>` : ''}
+      <div class="crm-hero">
+        <div><p class="eyebrow">RELACIÓN CON CLIENTES</p><h2>CRM de Sensoria</h2><p>Visión comercial, atención y seguimiento en una sola ficha por cliente.</p></div>
+        <button type="button" class="secondary" id="crmExport">Exportar clientes</button>
+      </div>
+      <div class="crm-kpis">
+        <article><span>Clientes</span><b>${Number(metrics.total_customers || 0)}</b><small>Con pedidos</small></article>
+        <article><span>Valor acumulado</span><b>${money.format(Number(metrics.total_spend || 0))}</b><small>${money.format(Number(metrics.average_value || 0))} por cliente</small></article>
+        <article><span>Recompra</span><b>${Number(metrics.repeat_rate || 0).toLocaleString('es-ES')} %</b><small>${Number(metrics.vip_count || 0)} clientes VIP</small></article>
+        <article><span>Casos abiertos</span><b>${Number(metrics.open_cases || 0)}</b><small>Requieren atención</small></article>
+        <article class="${Number(metrics.follow_ups_due || 0) ? 'attention' : ''}"><span>Seguimientos vencidos</span><b>${Number(metrics.follow_ups_due || 0)}</b><small>Acciones pendientes</small></article>
+      </div>
+      <section class="admin-card crm-directory">
+        <div class="card-head"><div><h2>Directorio de clientes</h2><p id="crmResultCount">${customers.length} clientes</p></div></div>
+        <div class="crm-filters">
+          <label class="crm-search"><span>Buscar</span><input id="crmSearch" value="${escapeHtml(state.crmFilters.query)}" placeholder="Nombre, correo, etiqueta o responsable"></label>
+          <label><span>Segmento</span><select id="crmSegment"><option value="">Todos</option>${['VIP','NUEVO','ACTIVO','EN_RIESGO','INACTIVO','BLOQUEADO'].map(value => `<option value="${value}" ${state.crmFilters.segment === value ? 'selected' : ''}>${crmLabel(value)}</option>`).join('')}</select></label>
+          <label><span>Estado</span><select id="crmStatus"><option value="">Todos</option>${['ACTIVO','EN_RIESGO','INACTIVO','BLOQUEADO'].map(value => `<option value="${value}" ${state.crmFilters.status === value ? 'selected' : ''}>${crmLabel(value)}</option>`).join('')}</select></label>
+          <label><span>Etapa</span><select id="crmStage"><option value="">Todas</option>${['PRIMERA_COMPRA','CLIENTE','FIDELIZADO'].map(value => `<option value="${value}" ${state.crmFilters.stage === value ? 'selected' : ''}>${crmLabel(value)}</option>`).join('')}</select></label>
+          <label><span>Ordenar</span><select id="crmSort"><option value="spend">Mayor valor</option><option value="recent">Actividad reciente</option><option value="followup">Próximo seguimiento</option><option value="name">Nombre</option></select></label>
+        </div>
+        <div class="crm-table-head"><span>Cliente</span><span>Segmento</span><span>Relación</span><span>Valor</span><span>Seguimiento</span><span></span></div>
+        <div id="crmCustomerRows" class="crm-customer-rows">${customers.map(renderCrmCustomerRow).join('') || '<div class="crm-empty"><b>Todavía no hay clientes</b><span>Los clientes aparecerán cuando realicen su primer pedido.</span></div>'}</div>
+      </section>
+    </div>`;
+  }
+
+  function renderCrmCustomerRow(customer) {
+    const initials = String(customer.name || customer.email || '?').split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase();
+    const searchable = `${customer.name} ${customer.email} ${customer.tags || ''} ${customer.owner || ''}`.toLowerCase();
+    const due = customer.next_follow_up_at && new Date(String(customer.next_follow_up_at).replace(' ', 'T')).getTime() <= Date.now();
+    return `<article class="crm-customer-row" data-crm-search="${escapeHtml(searchable)}" data-crm-segment="${escapeHtml(customer.segment)}" data-crm-status="${escapeHtml(customer.status)}" data-crm-stage="${escapeHtml(customer.lifecycle_stage)}" data-crm-spend="${Number(customer.spend || 0)}" data-crm-recent="${escapeHtml(customer.last_order || '')}" data-crm-followup="${escapeHtml(customer.next_follow_up_at || '9999-12-31')}" data-crm-name="${escapeHtml(customer.name || customer.email)}">
+      <span class="crm-person"><i>${escapeHtml(initials)}</i><span><b>${escapeHtml(customer.name || 'Cliente')}</b><small>${escapeHtml(customer.email)}</small>${customer.tags ? `<em>${escapeHtml(customer.tags)}</em>` : ''}</span></span>
+      <span><em class="crm-segment segment-${String(customer.segment || '').toLowerCase()}">${escapeHtml(crmLabel(customer.segment))}</em><small>${escapeHtml(crmLabel(customer.status))}</small></span>
+      <span><b>${Number(customer.orders || 0)} pedidos</b><small>Último: ${shortDate(customer.last_order)}</small>${Number(customer.open_cases || 0) ? `<small class="crm-alert">${Number(customer.open_cases)} caso(s) abierto(s)</small>` : ''}</span>
+      <span><b>${money.format(Number(customer.spend || 0))}</b><small>Ticket ${money.format(Number(customer.average_order || 0))}</small></span>
+      <span class="${due ? 'crm-due' : ''}"><b>${customer.next_follow_up_at ? shortDate(customer.next_follow_up_at) : 'Sin programar'}</b><small>${customer.owner ? `Responsable: ${escapeHtml(customer.owner)}` : 'Sin responsable'}</small></span>
+      <button type="button" data-crm-customer="${escapeHtml(customer.email)}" aria-label="Abrir ficha de ${escapeHtml(customer.name || customer.email)}">Ver ficha</button>
+    </article>`;
+  }
+
+  function bindCrm(crmData) {
+    const apply = () => {
+      const query = ($('#crmSearch')?.value || '').trim().toLowerCase();
+      const segment = $('#crmSegment')?.value || '';
+      const status = $('#crmStatus')?.value || '';
+      const stage = $('#crmStage')?.value || '';
+      const sort = $('#crmSort')?.value || 'spend';
+      state.crmFilters = { query, segment, status, stage, sort };
+      const rows = $$('.crm-customer-row', $('#crmCustomerRows'));
+      rows.forEach(row => { row.hidden = !(row.dataset.crmSearch.includes(query) && (!segment || row.dataset.crmSegment === segment) && (!status || row.dataset.crmStatus === status) && (!stage || row.dataset.crmStage === stage)); });
+      const visible = rows.filter(row => !row.hidden);
+      visible.sort((a, b) => sort === 'name' ? a.dataset.crmName.localeCompare(b.dataset.crmName, 'es') : sort === 'recent' ? b.dataset.crmRecent.localeCompare(a.dataset.crmRecent) : sort === 'followup' ? a.dataset.crmFollowup.localeCompare(b.dataset.crmFollowup) : Number(b.dataset.crmSpend) - Number(a.dataset.crmSpend));
+      visible.forEach(row => $('#crmCustomerRows').append(row));
+      if ($('#crmResultCount')) $('#crmResultCount').textContent = `${visible.length} de ${rows.length} clientes`;
+    };
+    ['#crmSearch','#crmSegment','#crmStatus','#crmStage','#crmSort'].forEach(selector => $(selector)?.addEventListener(selector === '#crmSearch' ? 'input' : 'change', apply));
+    if ($('#crmSort')) $('#crmSort').value = state.crmFilters.sort;
+    $$('[data-crm-customer]').forEach(button => button.addEventListener('click', () => openCrmCustomer(button.dataset.crmCustomer)));
+    $('#crmExport')?.addEventListener('click', () => {
+      const rows = [['Cliente','Email','Teléfono','Segmento','Estado','Etapa','Pedidos','Valor','Responsable','Próximo seguimiento'], ...(crmData?.customers || []).map(customer => [customer.name, customer.email, customer.phone, customer.segment, customer.status, customer.lifecycle_stage, customer.orders, customer.spend, customer.owner, customer.next_follow_up_at])];
+      const csv = rows.map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+      link.download = `crm-sensoria-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+    apply();
+  }
+
   function renderAdmin() {
     const root = $('#adminContent');
     if (!state.user || state.user.role !== 'admin') {
@@ -654,20 +736,23 @@
       const returnOptions = current => ['SOLICITADA', 'APROBADA', 'RECHAZADA', 'REEMBOLSO_SIMULADO'].map(status => `<option value="${status}" ${status === current ? 'selected' : ''}>${status.replace('_', ' ')}</option>`).join('');
 
       const dashboard = `<div class="kpis"><article><span>Pedidos</span><b>${orders.length}</b><small>Persistidos</small></article><article><span>Ventas simuladas</span><b>${money.format(revenue)}</b><small>Sin cobros reales</small></article><article><span>Eventos</span><b>${events.length}</b><small>Trazabilidad reciente</small></article><article><span>Devoluciones</span><b>${returns.length}</b><small>Solicitudes</small></article></div><section class="admin-card"><div class="card-head"><div><h2>Actividad de pedidos</h2><p>Últimos siete días</p></div><button type="button" class="secondary" id="exportOrders">Exportar CSV</button></div><div class="mini-chart" aria-label="Pedidos de los últimos siete días">${days.map(day => `<span style="height:${Math.max(5, day.count / chartMax * 100)}%"><b>${day.count}</b><small>${day.label}</small></span>`).join('')}</div></section><div class="admin-grid"><section class="admin-card"><h2>Últimos pedidos</h2>${orders.slice(0, 6).map(order => `<div class="admin-row"><span><b>${escapeHtml(order.order_number)}</b><small>${escapeHtml(order.customer_name)} · ${escapeHtml(order.status)}</small></span><strong>${money.format(+order.total)}</strong></div>`).join('') || '<p>Sin pedidos.</p>'}</section><section class="admin-card"><h2>Últimos eventos</h2><div class="feed">${events.slice(0, 8).map(event => `<div><i>●</i><span><b>${escapeHtml(event.event_type)}</b><small>${escapeHtml(eventPayload(event) || event.session_id)}</small></span><em>${escapeHtml(event.created_at)}</em></div>`).join('') || '<p>Sin eventos.</p>'}</div></section></div>`;
-      const orderList = `<section class="admin-card"><div class="card-head"><div><h2>Pedidos y estados</h2><p>Cambiar un estado genera la comunicación correspondiente.</p></div></div>${orders.map(order => `<div class="admin-row"><span><b>${escapeHtml(order.order_number)}</b><small>${escapeHtml(order.customer_name)} · ${escapeHtml(order.customer_email)} · ${money.format(+order.total)}</small></span><select data-order-status="${order.id}">${statusOptions(order.status)}</select></div>`).join('') || '<p>Sin pedidos.</p>'}</section>`;
+      const orderList = `<section class="admin-card"><div class="card-head"><div><h2>Pedidos, productos y estados</h2><p>Cada pedido muestra sus líneas. Cambiar el estado genera comunicación e integración.</p></div></div>${orders.map(order => { const lines = (order.items || []).map(item => `${Number(item.quantity)}× ${escapeHtml(item.product_name)} · ${money.format(Number(item.unit_price) * Number(item.quantity))}`).join('<br>'); return `<div class="admin-row admin-order-row"><span><b>${escapeHtml(order.order_number)}</b><small>${escapeHtml(order.customer_name)} · ${escapeHtml(order.customer_email)} · ${money.format(+order.total)}</small>${lines ? `<small class="admin-order-items">${lines}</small>` : '<small>Sin líneas registradas</small>'}</span><select data-order-status="${order.id}">${statusOptions(order.status)}</select></div>`; }).join('') || '<p>Sin pedidos.</p>'}</section>`;
       const filteredProducts = products.filter(product => `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(state.adminSearch.toLowerCase()));
       const catalog = `<section class="admin-card"><div class="card-head"><div><h2>Catálogo y stock</h2><p>Edita precios, disponibilidad y contenido del producto.</p></div><button type="button" class="primary" data-product-edit="0">Nuevo producto</button></div><div class="admin-tools"><input id="adminProductSearch" value="${escapeHtml(state.adminSearch)}" placeholder="Buscar por nombre, SKU o categoría"><select id="adminProductCategory"><option value="">Todas las categorías</option><option>Visual</option><option>Táctil</option><option>Sonoro</option></select></div><div id="adminProductRows">${filteredProducts.map(product => `<div class="admin-row" data-admin-product-category="${escapeHtml(product.category)}"><span><b>${escapeHtml(product.name)}</b><small>${escapeHtml(product.sku)} · ${escapeHtml(product.category)} · ${product.active ? 'Activo' : 'Oculto'}</small></span><b>${money.format(+product.price)}</b><span class="badge">Stock ${product.stock}</span><button type="button" data-product-edit="${product.id}">Editar</button></div>`).join('') || '<p>Sin productos coincidentes.</p>'}</div></section>`;
-      const crm = `<section class="admin-card"><h2>Clientes</h2>${customers.map(customer => `<div class="admin-row"><span><b>${escapeHtml(customer.name)}</b><small>${escapeHtml(customer.email)} · Último pedido ${escapeHtml(customer.last_order)}</small></span><span class="badge">${customer.orders} pedidos</span><b>${money.format(+customer.spend)}</b></div>`).join('') || '<p>Sin clientes.</p>'}</section>`;
+      const crm = renderCrm(state.crm || { customers, metrics: { total_customers: customers.length, total_spend: customers.reduce((sum, customer) => sum + Number(customer.spend || 0), 0) } });
       const communications = `<section class="admin-card"><div class="card-head"><div><h2>Comunicaciones</h2><p>Correo ${data.notification_config?.email_enabled ? 'activo' : 'simulado'} · SMS ${data.notification_config?.sms_enabled ? 'activo' : 'simulado'}</p></div></div>${notifications.map(item => `<div class="admin-row"><span><b>${escapeHtml(item.subject)}</b><small>${escapeHtml(item.channel)} · ${escapeHtml(item.recipient_email || item.recipient_phone || '')}</small></span><span class="badge ${item.delivery_status === 'ERROR' ? 'red' : ''}">${escapeHtml(item.delivery_status)}</span></div>`).join('') || '<p>Sin comunicaciones.</p>'}</section>`;
+      const supportList = `<section class="admin-card"><div class="card-head"><div><h2>Atención al cliente</h2><p>Consultas y devoluciones registradas con aviso al administrador.</p></div></div>${(data.support_requests || []).map(item => `<div class="admin-row"><span><b>${escapeHtml(item.reference)} · ${escapeHtml(item.subject)}</b><small>${escapeHtml(item.customer_name)} · ${escapeHtml(item.customer_email)}</small><small>${escapeHtml(item.message)}</small></span><span class="badge">${escapeHtml(item.status)}</span></div>`).join('') || '<p>Sin solicitudes.</p>'}<h3>Avisos al administrador</h3>${(data.admin_notifications || []).map(item => `<div class="admin-row"><span><b>${escapeHtml(item.subject)}</b><small>${escapeHtml(item.recipient_email)} · ${escapeHtml(item.created_at)}</small></span><span class="badge ${item.delivery_status === 'ERROR' ? 'red' : ''}">${escapeHtml(item.delivery_status)}</span></div>`).join('') || '<p>Sin avisos.</p>'}</section>`;
+      const integrationList = `<section class="admin-card"><div class="card-head"><div><h2>Integración con n8n</h2><p>${data.integration_config?.enabled ? 'Entrega activa' : 'Modo simulado'} · trazabilidad del outbox</p></div></div>${(data.integration_outbox || []).map(item => `<div class="admin-row"><span><b>${escapeHtml(item.event_type)}</b><small>${escapeHtml(item.event_id)} · HTTP ${escapeHtml(item.http_status || '—')}${item.last_error ? ` · ${escapeHtml(item.last_error)}` : ''}</small></span><span class="badge ${item.status === 'ERROR' ? 'red' : ''}">${escapeHtml(item.status)}</span></div>`).join('') || '<p>Sin eventos de integración.</p>'}</section>`;
       const returnList = `<section class="admin-card"><h2>Devoluciones</h2>${returns.map(item => `<div class="admin-row"><span><b>${escapeHtml(item.order_number)} · ${escapeHtml(item.reason)}</b><small>${escapeHtml(item.customer_name)} · ${escapeHtml(item.details)}</small></span><select data-return-status="${item.id}">${returnOptions(item.status)}</select></div>`).join('') || '<p>Sin devoluciones.</p>'}</section>`;
       const eventList = `<section class="admin-card"><h2>Registro de eventos</h2><div class="feed">${events.map(event => `<div><i>↳</i><span><b>${escapeHtml(event.event_type)}</b><small>${escapeHtml(eventPayload(event) || event.session_id)}${event.order_id ? ` · pedido ${event.order_id}` : ''}</small></span><em>${escapeHtml(event.created_at)}</em></div>`).join('') || '<p>Sin eventos.</p>'}</div></section>`;
-      const contents = { dashboard, orders: orderList, catalog, crm, communications, returns: returnList, events: eventList };
+      const contents = { dashboard, orders: orderList, catalog, crm, communications, support: supportList, integration: integrationList, returns: returnList, events: eventList };
 
-      root.innerHTML = `<div class="admin-tabs"><button data-tab="dashboard" class="${state.adminTab === 'dashboard' ? 'active' : ''}">Resumen</button><button data-tab="orders" class="${state.adminTab === 'orders' ? 'active' : ''}">Pedidos</button><button data-tab="events" class="${state.adminTab === 'events' ? 'active' : ''}">Eventos</button><button data-tab="returns" class="${state.adminTab === 'returns' ? 'active' : ''}">Devoluciones</button><button data-tab="communications" class="${state.adminTab === 'communications' ? 'active' : ''}">Comunicaciones</button><button data-tab="catalog" class="${state.adminTab === 'catalog' ? 'active' : ''}">Catálogo</button><button data-tab="crm" class="${state.adminTab === 'crm' ? 'active' : ''}">CRM</button></div><div class="admin-panel">${contents[state.adminTab] || dashboard}</div>`;
+      root.innerHTML = `<div class="admin-tabs"><button data-tab="dashboard" class="${state.adminTab === 'dashboard' ? 'active' : ''}">Resumen</button><button data-tab="orders" class="${state.adminTab === 'orders' ? 'active' : ''}">Pedidos</button><button data-tab="support" class="${state.adminTab === 'support' ? 'active' : ''}">Soporte</button><button data-tab="integration" class="${state.adminTab === 'integration' ? 'active' : ''}">Integración</button><button data-tab="events" class="${state.adminTab === 'events' ? 'active' : ''}">Eventos</button><button data-tab="returns" class="${state.adminTab === 'returns' ? 'active' : ''}">Devoluciones</button><button data-tab="communications" class="${state.adminTab === 'communications' ? 'active' : ''}">Comunicaciones</button><button data-tab="catalog" class="${state.adminTab === 'catalog' ? 'active' : ''}">Catálogo</button><button data-tab="crm" class="${state.adminTab === 'crm' ? 'active' : ''}">CRM</button></div><div class="admin-panel">${contents[state.adminTab] || dashboard}</div>`;
       $$('[data-tab]').forEach(btn => btn.addEventListener('click', () => {
         state.adminTab = btn.dataset.tab;
         renderAdmin();
       }));
+      if (state.adminTab === 'crm') bindCrm(state.crm || { customers });
       $('#exportOrders')?.addEventListener('click', () => {
         const rows = [['Pedido','Fecha','Cliente','Correo','Estado','Total'], ...orders.map(order => [order.order_number, order.created_at, order.customer_name, order.customer_email, order.status, order.total])];
         const csv = rows.map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
@@ -722,11 +807,122 @@
     const root = $('#adminContent');
     if (!state.user || state.user.role !== 'admin') return;
     try {
-      const data = await request('admin_data');
+      const [data, crm] = await Promise.all([
+        request('admin_data'),
+        request('crm').catch(error => ({ customers: [], metrics: {}, error: error.message })),
+      ]);
       state.admin = data;
+      state.crm = crm.error ? {
+        ...crm,
+        customers: data.customers || [],
+        metrics: {
+          total_customers: (data.customers || []).length,
+          total_spend: (data.customers || []).reduce((sum, customer) => sum + Number(customer.spend || 0), 0),
+        },
+      } : crm;
       renderAdmin();
     } catch (error) {
       root.innerHTML = `<div class="empty panel"><span>⚠</span><h3>No se pudo cargar la administración</h3><p>${escapeHtml(error.message || 'Error')}</p></div>`;
+    }
+  }
+
+  async function openCrmCustomer(email) {
+    openModal('<div class="crm-modal-loading"><span></span><b>Cargando ficha del cliente…</b></div>');
+    try {
+      const data = await request('crm_customer', { params: { email } });
+      const customer = data.customer;
+      const orders = data.orders || [];
+      const support = data.support || [];
+      const returns = data.returns || [];
+      const interactions = data.interactions || [];
+      const initials = String(customer.name || email).split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase();
+      const stageOptions = ['LEAD','PRIMERA_COMPRA','CLIENTE','FIDELIZADO'];
+      const statusOptions = ['ACTIVO','EN_RIESGO','INACTIVO','BLOQUEADO'];
+      $('#modalBody').innerHTML = `<section class="crm-profile">
+        <header class="crm-profile-head"><span class="crm-profile-avatar">${escapeHtml(initials)}</span><div><p class="eyebrow">FICHA 360º DEL CLIENTE</p><h2>${escapeHtml(customer.name || 'Cliente')}</h2><p>${escapeHtml(email)} · ${escapeHtml(customer.phone || customer.order_phone || 'Sin teléfono')}</p></div><em class="crm-segment segment-${String(customer.segment || '').toLowerCase()}">${escapeHtml(crmLabel(customer.segment))}</em></header>
+        <div class="crm-profile-kpis"><article><span>Valor total</span><b>${money.format(Number(customer.spend || 0))}</b></article><article><span>Pedidos</span><b>${Number(customer.orders || 0)}</b></article><article><span>Ticket medio</span><b>${money.format(Number(customer.average_order || 0))}</b></article><article><span>Cliente desde</span><b>${shortDate(customer.first_order)}</b></article></div>
+        <div class="crm-profile-layout">
+          <div class="crm-profile-main">
+            <section class="crm-panel"><div class="card-head"><div><h3>Actividad y seguimiento</h3><p>Notas, contactos y tareas del equipo.</p></div></div>
+              <form id="crmInteractionForm" class="crm-interaction-form">
+                <label>Actividad<select name="interaction_type"><option>NOTA</option><option>LLAMADA</option><option>EMAIL</option><option>TAREA</option></select></label>
+                <label class="grow">Asunto<input name="subject" maxlength="190" required placeholder="Ej.: Llamar para resolver la incidencia"></label>
+                <label class="wide">Detalle<textarea name="body" maxlength="5000" placeholder="Información útil para el siguiente contacto"></textarea></label>
+                <label>Resultado<input name="outcome" maxlength="190" placeholder="Opcional"></label>
+                <label>Seguimiento<input type="datetime-local" name="follow_up_at"></label>
+                <button class="primary" type="submit">Registrar actividad</button>
+              </form>
+              <div class="crm-timeline">${interactions.map(item => `<article class="${Number(item.completed) ? 'completed' : ''}"><i>${item.interaction_type === 'LLAMADA' ? '☎' : item.interaction_type === 'EMAIL' ? '✉' : item.interaction_type === 'TAREA' ? '✓' : '•'}</i><span><b>${escapeHtml(item.subject)}</b><small>${escapeHtml(crmLabel(item.interaction_type))} · ${escapeHtml(item.created_by)} · ${shortDate(item.created_at)}</small>${item.body ? `<p>${escapeHtml(item.body)}</p>` : ''}${item.outcome ? `<em>Resultado: ${escapeHtml(item.outcome)}</em>` : ''}${item.follow_up_at ? `<em class="${!Number(item.completed) && new Date(String(item.follow_up_at).replace(' ', 'T')).getTime() <= Date.now() ? 'overdue' : ''}">Seguimiento: ${shortDate(item.follow_up_at)}</em>` : ''}</span>${!Number(item.completed) && item.follow_up_at ? `<button type="button" data-crm-complete="${Number(item.id)}">Completar</button>` : ''}</article>`).join('') || '<div class="crm-empty"><b>Sin actividad registrada</b><span>Añade la primera nota, llamada o tarea.</span></div>'}</div>
+            </section>
+            <section class="crm-panel"><h3>Historial de pedidos</h3>${orders.map(order => `<article class="crm-order"><div><b>${escapeHtml(order.order_number)}</b><small>${shortDate(order.created_at)} · ${escapeHtml(crmLabel(order.status))}</small></div><span>${(order.items || []).map(item => `${Number(item.quantity)}× ${escapeHtml(item.product_name)}`).join('<br>') || 'Sin líneas'}</span><strong>${money.format(Number(order.total || 0))}</strong></article>`).join('') || '<p>Sin pedidos.</p>'}</section>
+            <section class="crm-panel"><h3>Atención y devoluciones</h3><div class="crm-case-grid"><div><h4>Casos (${support.length})</h4>${support.map(item => `<article><b>${escapeHtml(item.reference)} · ${escapeHtml(item.subject)}</b><small>${escapeHtml(crmLabel(item.status))} · ${shortDate(item.created_at)}</small><p>${escapeHtml(item.message)}</p></article>`).join('') || '<p>Sin casos.</p>'}</div><div><h4>Devoluciones (${returns.length})</h4>${returns.map(item => `<article><b>${escapeHtml(item.order_number)} · ${escapeHtml(item.reason)}</b><small>${escapeHtml(crmLabel(item.status))} · ${shortDate(item.created_at)}</small><p>${escapeHtml(item.details)}</p></article>`).join('') || '<p>Sin devoluciones.</p>'}</div></div></section>
+          </div>
+          <aside class="crm-profile-side"><form id="crmProfileForm" class="crm-panel crm-profile-form"><h3>Datos de relación</h3>
+            <label>Estado<select name="status">${statusOptions.map(value => `<option value="${value}" ${customer.status === value ? 'selected' : ''}>${crmLabel(value)}</option>`).join('')}</select></label>
+            <label>Etapa<select name="lifecycle_stage">${stageOptions.map(value => `<option value="${value}" ${customer.lifecycle_stage === value ? 'selected' : ''}>${crmLabel(value)}</option>`).join('')}</select></label>
+            <label>Responsable<input name="owner" maxlength="120" value="${escapeHtml(customer.owner || '')}" placeholder="Nombre del responsable"></label>
+            <label>Origen<input name="source" maxlength="80" value="${escapeHtml(customer.source || 'TIENDA_ONLINE')}"></label>
+            <label>Teléfono<input name="phone" maxlength="30" value="${escapeHtml(customer.phone || customer.order_phone || '')}"></label>
+            <label>Etiquetas<input name="tags" maxlength="500" value="${escapeHtml(customer.tags || '')}" placeholder="VIP, soporte, empresa…"><small>Separadas por comas</small></label>
+            <label>Próximo seguimiento<input type="datetime-local" name="next_follow_up_at" value="${escapeHtml(localDateTimeValue(customer.next_follow_up_at))}"></label>
+            <label>Notas internas<textarea name="notes" maxlength="5000">${escapeHtml(customer.notes || '')}</textarea></label>
+            <label class="consent-check"><input type="checkbox" name="consent_marketing" ${Number(customer.consent_marketing) ? 'checked' : ''}><span>Consentimiento comercial registrado</span></label>
+            <button class="primary" type="submit">Guardar ficha</button>
+            <small>Último contacto: ${shortDate(customer.last_contact_at)}</small>
+          </form></aside>
+        </div>
+      </section>`;
+
+      $('#crmProfileForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        button.disabled = true;
+        const form = new FormData(event.currentTarget);
+        const payload = Object.fromEntries(form.entries());
+        payload.email = email;
+        payload.consent_marketing = form.get('consent_marketing') === 'on';
+        payload.csrf = state.csrfToken;
+        try {
+          await post('crm_customer_save', payload);
+          toast('Ficha del cliente actualizada');
+          await loadAdmin();
+          await openCrmCustomer(email);
+        } catch (error) {
+          toast(error.message || 'No se pudo guardar la ficha');
+          button.disabled = false;
+        }
+      });
+      $('#crmInteractionForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        button.disabled = true;
+        const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+        payload.email = email;
+        payload.csrf = state.csrfToken;
+        try {
+          await post('crm_interaction_create', payload);
+          toast('Actividad añadida al historial');
+          await loadAdmin();
+          await openCrmCustomer(email);
+        } catch (error) {
+          toast(error.message || 'No se pudo registrar la actividad');
+          button.disabled = false;
+        }
+      });
+      $$('[data-crm-complete]', $('#modalBody')).forEach(button => button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await post('crm_interaction_complete', { id: Number(button.dataset.crmComplete), csrf: state.csrfToken });
+          toast('Seguimiento completado');
+          await loadAdmin();
+          await openCrmCustomer(email);
+        } catch (error) {
+          toast(error.message || 'No se pudo completar la actividad');
+          button.disabled = false;
+        }
+      }));
+    } catch (error) {
+      $('#modalBody').innerHTML = `<div class="empty panel"><span>⚠</span><h3>No se pudo abrir la ficha</h3><p>${escapeHtml(error.message || 'Error')}</p></div>`;
     }
   }
 
