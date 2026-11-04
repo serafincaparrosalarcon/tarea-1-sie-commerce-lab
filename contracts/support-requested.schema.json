@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "support.requested payload",
+  "type": "object",
+  "required": ["case_id", "case_type", "subject", "message", "customer"],
+  "properties": {
+    "case_id": { "type": "string", "minLength": 6 },
+    "case_type": { "type": "string", "enum": ["CONSULTA", "INCIDENCIA", "DEVOLUCION", "FACTURA"] },
+    "subject": { "type": "string", "minLength": 3, "maxLength": 200 },
+    "message": { "type": "string", "minLength": 5, "maxLength": 4500 },
+    "priority": { "type": "string", "enum": ["BAJA", "MEDIA", "ALTA", "CRITICA"] },
+    "order_id": { "type": ["string", "integer", "null"] },
+    "order_number": { "type": ["string", "null"] },
+    "customer": {
+      "type": "object",
+      "required": ["name", "email"],
+      "properties": {
+        "id": { "type": ["string", "integer"] },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "telegram_chat_id": { "type": "string" }
+      }
+    }
+  }
+}

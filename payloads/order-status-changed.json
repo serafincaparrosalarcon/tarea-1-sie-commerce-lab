@@ -1,0 +1,14 @@
+{
+  "event_id": "evt-status-20261104-001",
+  "event_type": "order.status_changed",
+  "occurred_at": "2026-11-04T10:30:00.000Z",
+  "source": "sensoria-frontoffice",
+  "idempotency_key": "order-SEN-2026-1104-001-status-preparacion",
+  "payload": {
+    "order_id": "1001",
+    "order_number": "SEN-2026-1104-001",
+    "previous_status": "PAGO_SIMULADO",
+    "status": "PREPARACION",
+    "changed_by": "admin.demo@sensoria.local"
+  }
+}

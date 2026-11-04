@@ -29,6 +29,13 @@ const SMTP_USER = 'pedidos@TU_DOMINIO.es';
 const SMTP_PASS = 'TU_CONTRASENA_DE_CORREO';
 const SMTP_FROM_EMAIL = 'pedidos@TU_DOMINIO.es';
 const SMTP_FROM_NAME = 'Sensoria';
+const ADMIN_NOTIFICATION_EMAIL = 'admin@TU_DOMINIO.es';
+
+/* Integración Tarea 2: front-office -> n8n -> back-office independiente. */
+const INTEGRATION_ENABLED = false;
+const INTEGRATION_WEBHOOK_URL = 'https://TU-N8N.example/webhook/sensoria-events';
+const INTEGRATION_SHARED_SECRET = 'CAMBIA_ESTE_SECRETO_COMPARTIDO';
+const INTEGRATION_TIMEOUT_SECONDS = 8;
 
 /* SMS reales mediante Twilio. El número debe estar en formato internacional. */
 const SMS_ENABLED = false;

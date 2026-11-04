@@ -1,0 +1,40 @@
+{
+  "event_id": "evt-order-20261104-001",
+  "event_type": "order.created",
+  "occurred_at": "2026-11-04T10:15:00.000Z",
+  "source": "sensoria-frontoffice",
+  "idempotency_key": "order-SEN-2026-1104-001-v1",
+  "payload": {
+    "order_id": "1001",
+    "order_number": "SEN-2026-1104-001",
+    "status": "PAGO_SIMULADO",
+    "currency": "EUR",
+    "subtotal": 93.85,
+    "discount": 0,
+    "shipping": 0,
+    "total": 93.85,
+    "placed_at": "2026-11-04T10:14:45.000Z",
+    "customer": {
+      "id": "demo-customer-001",
+      "name": "Cliente Demo",
+      "email": "cliente.demo@sensoria.local",
+      "phone": "+34600000000"
+    },
+    "items": [
+      {
+        "product_id": "1",
+        "sku": "PRD-001",
+        "product_name": "Aura Wave",
+        "quantity": 1,
+        "unit_price": 74.9
+      },
+      {
+        "product_id": "4",
+        "sku": "PRD-004",
+        "product_name": "Pebble Calm",
+        "quantity": 1,
+        "unit_price": 18.95
+      }
+    ]
+  }
+}

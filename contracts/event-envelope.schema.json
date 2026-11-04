@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensoria.onl/contracts/event-envelope.schema.json",
+  "title": "Sensoria Integration Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "occurred_at", "source", "idempotency_key", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 8, "maxLength": 100 },
+    "event_type": {
+      "type": "string",
+      "enum": ["order.created", "payment.simulated", "order.status_changed", "stock.changed", "support.requested", "return.requested", "incident.created"]
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "const": "sensoria-frontoffice" },
+    "idempotency_key": { "type": "string", "minLength": 8, "maxLength": 150 },
+    "payload": { "type": "object" }
+  }
+}

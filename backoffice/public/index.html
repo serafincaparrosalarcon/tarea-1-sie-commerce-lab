@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Back-office academico independiente de Sensoria para integracion, automatizacion e IA agentica supervisada.">
+  <title>Sensoria Operations · Back-office académico</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="academic-banner">PROTOTIPO ACADÉMICO · DATOS, PAGOS, MENSAJES Y DECISIONES SIMULADOS</div>
+
+  <section id="loginView" class="login-view">
+    <div class="login-art" aria-hidden="true">
+      <span class="login-orbit orbit-one"></span><span class="login-orbit orbit-two"></span>
+      <div class="login-mark">≋</div>
+      <p>INTEGRACIÓN · AUTOMATIZACIÓN · SUPERVISIÓN</p>
+      <h1>El control operativo detrás de cada experiencia Sensoria.</h1>
+    </div>
+    <form id="loginForm" class="login-card">
+      <p class="eyebrow">SENSORIA OPERATIONS</p>
+      <h2>Acceso al back-office</h2>
+      <p>Entorno independiente para pedidos, postventa, trazabilidad e IA agéntica.</p>
+      <label>Correo de prueba<input type="email" name="email" value="admin@sensoria.local" autocomplete="username" required></label>
+      <label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Entrar en Operations</button>
+      <small>Utiliza las credenciales privadas configuradas al desplegar Operations.</small>
+    </form>
+  </section>
+
+  <div id="appView" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span>≋</span><div><b>SENSORIA</b><small>OPERATIONS</small></div></div>
+      <nav aria-label="Navegación del back-office">
+        <button class="active" data-section="dashboard"><span>⌂</span>Resumen</button>
+        <button data-section="orders"><span>▣</span>Pedidos</button>
+        <button data-section="cases"><span>◈</span>Postventa</button>
+        <button data-section="agent"><span>✦</span>Agente IA</button>
+        <button data-section="integrations"><span>⇄</span>Integraciones</button>
+        <button data-section="audit"><span>◎</span>Auditoría</button>
+        <button data-section="decision"><span>⌁</span>Matriz</button>
+      </nav>
+      <div class="sidebar-foot"><span class="status-dot"></span><span><b>Sistema operativo</b><small id="systemMode">Comprobando...</small></span></div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div><p class="eyebrow" id="sectionEyebrow">CENTRO DE OPERACIONES</p><h1 id="sectionTitle">Resumen operativo</h1></div>
+        <div class="top-actions"><a id="frontofficeLink" href="https://www.sensoria.onl" target="_blank" rel="noopener">Abrir tienda ↗</a><button id="refreshBtn" class="icon-button" title="Actualizar">↻</button><button id="logoutBtn" class="avatar" title="Cerrar sesión">SO</button></div>
+      </header>
+      <main id="content" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -24,6 +24,34 @@ function dispatch_order_notifications(PDO $pdo, array $order, string $template):
     ];
 }
 
+/** Notifica al equipo administrador las devoluciones y consultas de soporte. */
+function dispatch_admin_case_notification(PDO $pdo, array $case): array {
+    $reference = (string)($case['reference'] ?? 'SIN-REFERENCIA');
+    $kind = (string)($case['case_type'] ?? 'SOPORTE');
+    $subject = 'Sensoria · ' . $kind . ' · ' . $reference;
+    $orderNumber = trim((string)($case['order_number'] ?? ''));
+    $html = '<!doctype html><html lang="es"><body style="font-family:Arial,sans-serif;color:#102a3c;background:#edf3f5;padding:24px">'
+        . '<div style="max-width:640px;margin:auto;background:#fff;border-radius:18px;overflow:hidden">'
+        . '<div style="background:#102a3c;color:#fff;padding:24px"><b style="font-size:22px;letter-spacing:2px">SENSORIA OPERATIONS</b></div>'
+        . '<div style="padding:28px"><p style="color:#315f78;font-weight:bold">NUEVO CASO ' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</p>'
+        . '<h1 style="font-size:25px">' . htmlspecialchars((string)($case['subject'] ?? $kind), ENT_QUOTES, 'UTF-8') . '</h1>'
+        . '<p><b>Cliente:</b> ' . htmlspecialchars((string)($case['customer_name'] ?? ''), ENT_QUOTES, 'UTF-8') . ' · '
+        . htmlspecialchars((string)($case['customer_email'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p>'
+        . ($orderNumber !== '' ? '<p><b>Pedido:</b> ' . htmlspecialchars($orderNumber, ENT_QUOTES, 'UTF-8') . '</p>' : '')
+        . '<div style="background:#f4f7f7;border-radius:12px;padding:18px;white-space:pre-wrap">'
+        . htmlspecialchars((string)($case['message'] ?? ''), ENT_QUOTES, 'UTF-8') . '</div>'
+        . '<p style="font-size:13px;color:#647786">Accede al back-office para revisar el caso y cualquier propuesta del agente.</p></div></div></body></html>';
+    $result = send_smtp_notification(ADMIN_NOTIFICATION_EMAIL, $subject, $html);
+    $stmt = $pdo->prepare('INSERT INTO admin_notifications(reference,notification_type,recipient_email,subject,delivery_status,provider_id,error_message) VALUES(?,?,?,?,?,?,?)');
+    $stmt->execute([$reference, $kind, ADMIN_NOTIFICATION_EMAIL, $subject, $result['status'], $result['provider_id'], $result['error']]);
+    return [
+        'channel' => 'EMAIL',
+        'recipient' => ADMIN_NOTIFICATION_EMAIL,
+        'delivery_status' => $result['status'],
+        'error_message' => $result['error'],
+    ];
+}
+
 function notification_message(array $order, string $template): array {
     $titles = [
         'PAGO_SIMULADO' => 'Hemos recibido tu pedido',
