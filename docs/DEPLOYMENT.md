@@ -12,10 +12,10 @@
 
 Desplegar `backoffice/` mediante su `Dockerfile`, con volumen persistente en `/data` y variables de `backoffice/.env.example`. Exponer HTTPS y comprobar `/api/health`.
 
-Para la entrega académica rápida se incluye `render.yaml` con plan Render Free. El
-plan gratuito no ofrece disco persistente, por lo que el arranque vuelve a cargar los
-tres escenarios de demostración si la base SQLite está vacía. Para un entorno real,
-usar un servicio de pago con disco o migrar el almacenamiento a una base gestionada.
+Para la entrega académica rápida se usa Railway conectado al repositorio de GitHub,
+con `/backoffice` como directorio raíz, healthcheck `/api/health` y dominio público.
+`SEED_DEMO_DATA=true` carga los tres escenarios académicos si la base SQLite está
+vacía. Railway permite añadir posteriormente un volumen montado en `/data`.
 
 - URL final pendiente: `https://____________________________`
 
