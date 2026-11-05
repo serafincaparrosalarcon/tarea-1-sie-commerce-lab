@@ -85,6 +85,8 @@ Resultado esperado: 9 pruebas superadas, cubriendo salud, acceso, firma, tres es
 En Railway, crea un servicio desde este repositorio, establece **Root Directory**
 en `/backoffice` y completa estas dos variables privadas:
 
+URL pública desplegada: `https://tarea-1-sie-commerce-lab-production.up.railway.app`
+
 - `ADMIN_PASSWORD`: contraseña académica para entrar en Operations.
 - `INTEGRATION_SHARED_SECRET`: secreto compartido con el workflow de n8n.
 
