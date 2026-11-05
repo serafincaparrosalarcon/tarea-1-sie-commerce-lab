@@ -10,7 +10,12 @@
 
 ## Operations
 
-Desplegar `backoffice/` mediante su `Dockerfile`, con volumen persistente en `/app/data` y variables de `backoffice/.env.example`. Exponer HTTPS y comprobar `/api/health`.
+Desplegar `backoffice/` mediante su `Dockerfile`, con volumen persistente en `/data` y variables de `backoffice/.env.example`. Exponer HTTPS y comprobar `/api/health`.
+
+Para la entrega académica rápida se incluye `render.yaml` con plan Render Free. El
+plan gratuito no ofrece disco persistente, por lo que el arranque vuelve a cargar los
+tres escenarios de demostración si la base SQLite está vacía. Para un entorno real,
+usar un servicio de pago con disco o migrar el almacenamiento a una base gestionada.
 
 - URL final pendiente: `https://____________________________`
 
