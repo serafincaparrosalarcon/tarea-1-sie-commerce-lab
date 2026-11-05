@@ -17,7 +17,8 @@ con `/backoffice` como directorio raíz, healthcheck `/api/health` y dominio pú
 `SEED_DEMO_DATA=true` carga los tres escenarios académicos si la base SQLite está
 vacía. Railway permite añadir posteriormente un volumen montado en `/data`.
 
-- URL final pendiente: `https://____________________________`
+- URL final: `https://tarea-1-sie-commerce-lab-production.up.railway.app`
+- Healthcheck verificado: `https://tarea-1-sie-commerce-lab-production.up.railway.app/api/health`
 
 ## n8n
 
