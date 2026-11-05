@@ -8,6 +8,7 @@ import { processIntegrationEvent } from './lib/integration.mjs';
 import { PayloadError, validateEnvelope } from './lib/validation.mjs';
 import { createAgentProposal } from './lib/agent.mjs';
 import { sendTelegram, telegramClientMessage } from './lib/telegram.mjs';
+import { demoEvents } from './lib/demo-data.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -24,7 +25,8 @@ const ENV = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
   TELEGRAM_REVIEW_CHAT_ID: process.env.TELEGRAM_REVIEW_CHAT_ID || '',
   TELEGRAM_CLIENT_CHAT_ID: process.env.TELEGRAM_CLIENT_CHAT_ID || '',
-  FRONTOFFICE_URL: process.env.FRONTOFFICE_URL || 'https://www.sensoria.onl'
+  FRONTOFFICE_URL: process.env.FRONTOFFICE_URL || 'https://www.sensoria.onl',
+  SEED_DEMO_DATA: String(process.env.SEED_DEMO_DATA || '').toLowerCase() === 'true'
 };
 
 if (!ENV.ADMIN_PASSWORD || !ENV.INTEGRATION_SHARED_SECRET) {
@@ -32,6 +34,10 @@ if (!ENV.ADMIN_PASSWORD || !ENV.INTEGRATION_SHARED_SECRET) {
 }
 
 const db = openDatabase(DB_FILE);
+if (ENV.SEED_DEMO_DATA && db.prepare('SELECT COUNT(*) total FROM integration_events').get().total === 0) {
+  for (const event of demoEvents) processIntegrationEvent(db, event);
+  console.log('Escenarios academicos de demostracion cargados.');
+}
 const sessions = new Map();
 const mime = {
   '.html': 'text/html; charset=utf-8',
