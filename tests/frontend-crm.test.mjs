@@ -23,6 +23,24 @@ test('el CRM dispone de persistencia, migración y rutas protegidas', () => {
   assert.match(api, /require_csrf\(\$b\)/);
 });
 
+test('la API mantiene compatibilidad con configuraciones antiguas de DonDominio', () => {
+  const api = readFileSync(resolve(root, 'api/index.php'), 'utf8');
+
+  for (const constant of [
+    'MAIL_ENABLED',
+    'SMS_ENABLED',
+    'ADMIN_NOTIFICATION_EMAIL',
+    'INTEGRATION_ENABLED',
+    'INTEGRATION_WEBHOOK_URL',
+    'INTEGRATION_SHARED_SECRET',
+    'INTEGRATION_TIMEOUT_SECONDS',
+  ]) {
+    assert.match(api, new RegExp(`'${constant}'\\s*=>`));
+  }
+  assert.match(api, /if \(!defined\(\$constantName\)\)/);
+  assert.match(api, /soporte@sensoria\.onl/);
+});
+
 test('la interfaz CRM conserva sintaxis válida y ofrece filtros, ficha e historial', () => {
   const app = readFileSync(resolve(root, 'assets/app.js'), 'utf8');
   const css = readFileSync(resolve(root, 'assets/crm.css'), 'utf8');
