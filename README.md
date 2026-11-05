@@ -80,17 +80,18 @@ npm test
 
 Resultado esperado: 9 pruebas superadas, cubriendo salud, acceso, firma, tres escenarios, duplicados, líneas de pedido, métricas, sincronización, agente, aprobación y regresión del CRM.
 
-## Despliegue rápido del back-office en Render
+## Despliegue rápido del back-office en Railway
 
-El repositorio incluye `render.yaml`. En Render, crea un **Blueprint** desde este
-repositorio y completa únicamente estas dos variables privadas cuando las solicite:
+En Railway, crea un servicio desde este repositorio, establece **Root Directory**
+en `/backoffice` y completa estas dos variables privadas:
 
 - `ADMIN_PASSWORD`: contraseña académica para entrar en Operations.
 - `INTEGRATION_SHARED_SECRET`: secreto compartido con el workflow de n8n.
 
-El servicio usa el plan gratuito y publica `/api/health` como comprobación. Debido
-al almacenamiento efímero de Render Free, `SEED_DEMO_DATA=true` recupera los tres
-escenarios académicos cuando el contenedor arranca con una base vacía. No se deben
+Añade también `ADMIN_USER=admin@sensoria.onl`,
+`FRONTOFFICE_URL=https://www.sensoria.onl`, `DATA_DIR=/data` y
+`SEED_DEMO_DATA=true`. Genera un dominio público y configura `/api/health` como
+healthcheck. El Dockerfile de `backoffice/` se detecta automáticamente. No se deben
 usar credenciales personales ni reutilizar contraseñas reales.
 
 ## Arranque con Docker Compose
