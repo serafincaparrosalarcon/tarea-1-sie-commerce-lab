@@ -3,6 +3,35 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/config.php';
+
+/*
+ * Compatibilidad con instalaciones anteriores de Sensoria.
+ * DonDominio conserva config.php entre despliegues para no sobrescribir
+ * credenciales, así que las opciones añadidas en versiones nuevas deben tener
+ * valores seguros cuando todavía no existen en la configuración del servidor.
+ */
+$adminNotificationEmail = getenv('ADMIN_NOTIFICATION_EMAIL') ?: '';
+if (!filter_var($adminNotificationEmail, FILTER_VALIDATE_EMAIL)) {
+    $adminNotificationEmail = defined('SMTP_FROM_EMAIL') && filter_var(SMTP_FROM_EMAIL, FILTER_VALIDATE_EMAIL)
+        ? SMTP_FROM_EMAIL
+        : 'soporte@sensoria.onl';
+}
+
+$optionalConfigDefaults = [
+    'MAIL_ENABLED' => false,
+    'SMS_ENABLED' => false,
+    'ADMIN_NOTIFICATION_EMAIL' => $adminNotificationEmail,
+    'INTEGRATION_ENABLED' => false,
+    'INTEGRATION_WEBHOOK_URL' => '',
+    'INTEGRATION_SHARED_SECRET' => '',
+    'INTEGRATION_TIMEOUT_SECONDS' => 8,
+];
+foreach ($optionalConfigDefaults as $constantName => $defaultValue) {
+    if (!defined($constantName)) {
+        define($constantName, $defaultValue);
+    }
+}
+
 require dirname(__DIR__) . '/lib/notifications.php';
 require dirname(__DIR__) . '/lib/integration.php';
 
