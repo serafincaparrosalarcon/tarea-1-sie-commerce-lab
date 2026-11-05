@@ -52,7 +52,7 @@ async function sendEvent(filename, signature = true) {
 test.before(async () => {
   child = spawn(process.execPath, ['backoffice/server.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, INTEGRATION_SHARED_SECRET: secret, ADMIN_PASSWORD: adminPassword },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, INTEGRATION_SHARED_SECRET: secret, ADMIN_USER: 'admin@sensoria.onl', ADMIN_PASSWORD: adminPassword },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   await waitForServer();
@@ -67,8 +67,19 @@ test('salud pública y control de acceso', async () => {
   const health = await api('/api/health');
   assert.equal(health.response.status, 200);
   assert.equal(health.data.service, 'sensoria-operations');
+  const authConfig = await api('/api/auth/config');
+  assert.equal(authConfig.response.status, 200);
+  assert.equal(authConfig.data.login_email, 'admin@sensoria.onl');
   const dashboard = await api('/api/dashboard');
   assert.equal(dashboard.response.status, 401);
+});
+
+test('la interfaz no expone el panel antes de iniciar sesión', () => {
+  const html = readFileSync(join(root, 'backoffice', 'public', 'index.html'), 'utf8');
+  const css = readFileSync(join(root, 'backoffice', 'public', 'styles.css'), 'utf8');
+  assert.match(html, /id="appView"[^>]*hidden/);
+  assert.match(html, /value="admin@sensoria\.onl"/);
+  assert.match(css, /\[hidden\]\{display:none!important\}/);
 });
 
 test('rechaza integraciones sin firma HMAC válida', async () => {
@@ -92,7 +103,7 @@ test('autentica y muestra pedidos con sus productos', async () => {
   const login = await api('/api/auth/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@sensoria.local', password: adminPassword })
+    body: JSON.stringify({ email: 'admin@sensoria.onl', password: adminPassword })
   });
   assert.equal(login.response.status, 200);
   cookie = login.response.headers.get('set-cookie').split(';')[0];
