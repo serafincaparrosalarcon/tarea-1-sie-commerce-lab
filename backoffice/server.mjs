@@ -173,6 +173,10 @@ async function handleApi(req, res, url) {
     return json(res, 200, { user: sessionUser(req) });
   }
 
+  if (pathname === '/api/auth/config' && req.method === 'GET') {
+    return json(res, 200, { login_email: ENV.ADMIN_USER });
+  }
+
   if (pathname === '/api/auth/login' && req.method === 'POST') {
     const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
     const submittedUser = String(body.email || '').trim().toLowerCase();
