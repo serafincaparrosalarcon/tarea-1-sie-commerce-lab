@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sensoria-operations
+    runtime: docker
+    plan: free
+    rootDir: backoffice
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ADMIN_USER
+        value: admin@sensoria.onl
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: INTEGRATION_SHARED_SECRET
+        sync: false
+      - key: FRONTOFFICE_URL
+        value: https://www.sensoria.onl
+      - key: DATA_DIR
+        value: /data
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
